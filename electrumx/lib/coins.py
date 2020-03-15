@@ -3438,15 +3438,18 @@ class Kevacoin(Coin):
 
     @classmethod
     def header_hash(cls, header):
+        import pycryptonight
         major_version = int(header[81])
         height = int(header[75:4], "little")
         if major_version == 10:
-            import py_cryptonight
+            # python3.7 -m pip install git+https://github.com/ph4r05/py-cryptonight
             return pycryptonight.cn_slow_hash(header, 4, 0, height)
         elif major_version == 12:
+            # python3.7 -m pip install git+https://github.com/kevacoin-project/pyrx
             import pyrx
             # seed_height = rx_get_seed_heigth(height)
             # static_header_offset(seed_height)
             # Get the cnHeader, and perform cn_fast_hash on the header
             # to get the seed_hash.
+            # seed_hash = pycryptonight.cn_fast_hash(cnHeader)
             return pyrx.get_rx_hash(header, seed_hash, height)
