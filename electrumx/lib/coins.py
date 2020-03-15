@@ -100,6 +100,7 @@ class Coin(object):
         Raise an exception if unrecognised.'''
         req_attrs = ['TX_COUNT', 'TX_COUNT_HEIGHT', 'TX_PER_BLOCK']
         for coin in util.subclasses(Coin):
+            print(coin)
             if (coin.NAME.lower() == name.lower() and
                     coin.NET.lower() == net.lower()):
                 coin_req_attrs = req_attrs.copy()
@@ -3409,3 +3410,43 @@ class Navcoin(Coin):
         else:
             import x13_hash
             return x13_hash.getPoWHash(header)
+
+
+class Kevacoin(Coin):
+    NAME = "Kevacoin"
+    SHORTNAME = "KVA"
+    NET = "mainnet"
+    # Bitcoin header: 80
+    # Blob size byte: 1
+    # Monero header blob: 76
+    BASIC_HEADER_SIZE = 157
+    XPUB_VERBYTES = bytes.fromhex("0488b21e")
+    XPRV_VERBYTES = bytes.fromhex("0488ade4")
+    P2PKH_VERBYTE = bytes.fromhex("2d")
+    P2SH_VERBYTES = [bytes.fromhex("46")]
+    WIF_BYTE = bytes.fromhex("b0")
+    GENESIS_HASH = ('70bd30ae775c691fc8a2b7d27f37279a'
+                    '4f505f877e3234105f22e963a618597c')
+    DESERIALIZER = lib_tx.DeserializerSegWit
+    TX_COUNT = 976394
+    TX_COUNT_HEIGHT = 659520
+    TX_PER_BLOCK = 2
+    REORG_LIMIT = 800
+    RPC_PORT = 9332
+    PEER_DEFAULT_PORTS = {'t': '19332', 's': '9332'}
+    PEERS = []
+
+    @classmethod
+    def header_hash(cls, header):
+        major_version = int(header[81])
+        height = int(header[75:4], "little")
+        if major_version == 10:
+            import py_cryptonight
+            return pycryptonight.cn_slow_hash(header, 4, 0, height)
+        elif major_version == 12:
+            import pyrx
+            # seed_height = rx_get_seed_heigth(height)
+            # static_header_offset(seed_height)
+            # Get the cnHeader, and perform cn_fast_hash on the header
+            # to get the seed_hash.
+            return pyrx.get_rx_hash(header, seed_hash, height)
