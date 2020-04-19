@@ -3424,12 +3424,12 @@ class Kevacoin(Coin):
     XPRV_VERBYTES = bytes.fromhex("0488ade4")
     P2PKH_VERBYTE = bytes.fromhex("2d")
     P2SH_VERBYTES = [bytes.fromhex("46")]
-    WIF_BYTE = bytes.fromhex("b0")
+    WIF_BYTE = bytes.fromhex("8b")
     GENESIS_HASH = ('70bd30ae775c691fc8a2b7d27f37279a'
                     '4f505f877e3234105f22e963a618597c')
     DESERIALIZER = lib_tx.DeserializerSegWit
-    TX_COUNT = 976394
-    TX_COUNT_HEIGHT = 659520
+    TX_COUNT = 40000
+    TX_COUNT_HEIGHT = 38871
     TX_PER_BLOCK = 2
     REORG_LIMIT = 800
     RPC_PORT = 9332
