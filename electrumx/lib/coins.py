@@ -3434,7 +3434,10 @@ class Kevacoin(Coin):
     REORG_LIMIT = 800
     RPC_PORT = 9332
     PEER_DEFAULT_PORTS = {'t': '19332', 's': '9332'}
-    PEERS = []
+    PEERS = [
+        'ec0.kevacoin.org s',
+        'ec1.kevacoin.org s',
+    ]
 
     @classmethod
     def header_hash(cls, header):
