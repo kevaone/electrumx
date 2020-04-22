@@ -3433,7 +3433,7 @@ class Kevacoin(Coin):
     TX_PER_BLOCK = 2
     REORG_LIMIT = 800
     RPC_PORT = 9332
-    PEER_DEFAULT_PORTS = {'t': '19332', 's': '9332'}
+    PEER_DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     PEERS = [
         'ec0.kevacoin.org s',
         'ec1.kevacoin.org s',
