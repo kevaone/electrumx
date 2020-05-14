@@ -3412,7 +3412,7 @@ class Navcoin(Coin):
             return x13_hash.getPoWHash(header)
 
 
-class Kevacoin(Coin):
+class Kevacoin(NameMixin, Coin):
     NAME = "Kevacoin"
     SHORTNAME = "KVA"
     NET = "mainnet"
@@ -3439,8 +3439,31 @@ class Kevacoin(Coin):
         'ec1.kevacoin.org s',
     ]
 
+    # Keva opcodes
+    OP_KEVA_NAMESPACE = OpCodes.OP_KEVA_NAMESPACE
+    OP_KEVA_PUT = OpCodes.OP_KEVA_PUT
+    OP_KEVA_DELETE = OpCodes.OP_KEVA_DELETE
+
+    # Valid name prefixes.
+    NAME_NAMESPACE_OPS = [OP_KEVA_NAMESPACE, "name", -1, OpCodes.OP_2DROP]
+    NAME_PUT_OPS = [OP_KEVA_PUT, "name", -1, -1,
+                            OpCodes.OP_2DROP, OpCodes.OP_DROP]
+    NAME_DELETE_OPS = [OP_KEVA_DELETE, "name", -1, OpCodes.OP_2DROP,
+                       OpCodes.OP_DROP]
+    NAME_OPERATIONS = [
+        NAME_NAMESPACE_OPS,
+        NAME_PUT_OPS,
+        NAME_DELETE_OPS,
+    ]
+
     @classmethod
     def header_hash(cls, header):
         import pycryptonight
         cnHeader = header[81:]
         return pycryptonight.cn_fast_hash(cnHeader)
+
+    @classmethod
+    def hashX_from_script(cls, script):
+        _, address_script = cls.interpret_name_prefix(script, cls.NAME_OPERATIONS)
+
+        return super().hashX_from_script(address_script)
