@@ -3448,8 +3448,7 @@ class Kevacoin(NameMixin, Coin):
     NAME_NAMESPACE_OPS = [OP_KEVA_NAMESPACE, "name", -1, OpCodes.OP_2DROP]
     NAME_PUT_OPS = [OP_KEVA_PUT, "name", -1, -1,
                             OpCodes.OP_2DROP, OpCodes.OP_DROP]
-    NAME_DELETE_OPS = [OP_KEVA_DELETE, "name", -1, OpCodes.OP_2DROP,
-                       OpCodes.OP_DROP]
+    NAME_DELETE_OPS = [OP_KEVA_DELETE, "name", -1, OpCodes.OP_2DROP]
     NAME_OPERATIONS = [
         NAME_NAMESPACE_OPS,
         NAME_PUT_OPS,
