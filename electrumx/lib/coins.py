@@ -3412,7 +3412,7 @@ class Navcoin(Coin):
             return x13_hash.getPoWHash(header)
 
 
-class Kevacoin(NameMixin, Coin):
+class Kevacoin(NameIndexMixin, Coin):
     NAME = "Kevacoin"
     SHORTNAME = "KVA"
     NET = "mainnet"
@@ -3439,16 +3439,16 @@ class Kevacoin(NameMixin, Coin):
         'ec1.kevacoin.org s',
     ]
 
-    # Keva opcodes
-    OP_KEVA_NAMESPACE = OpCodes.OP_KEVA_NAMESPACE
-    OP_KEVA_PUT = OpCodes.OP_KEVA_PUT
-    OP_KEVA_DELETE = OpCodes.OP_KEVA_DELETE
+    # Op-codes for name operations, customized for Keva
+    OP_NAME_REGISTER = OpCodes.OP_KEVA_NAMESPACE
+    OP_NAME_UPDATE = OpCodes.OP_KEVA_PUT
+    OP_NAME_DELETE = OpCodes.OP_KEVA_DELETE
 
     # Valid name prefixes.
-    NAME_NAMESPACE_OPS = [OP_KEVA_NAMESPACE, "name", -1, OpCodes.OP_2DROP]
-    NAME_PUT_OPS = [OP_KEVA_PUT, "name", -1, -1,
+    NAME_NAMESPACE_OPS = [OP_NAME_REGISTER, "name", -1, OpCodes.OP_2DROP]
+    NAME_PUT_OPS = [OP_NAME_UPDATE, "name", -1, -1,
                             OpCodes.OP_2DROP, OpCodes.OP_DROP]
-    NAME_DELETE_OPS = [OP_KEVA_DELETE, "name", -1, OpCodes.OP_2DROP]
+    NAME_DELETE_OPS = [OP_NAME_DELETE, "name", -1, OpCodes.OP_2DROP]
     NAME_OPERATIONS = [
         NAME_NAMESPACE_OPS,
         NAME_PUT_OPS,
@@ -3460,9 +3460,3 @@ class Kevacoin(NameMixin, Coin):
         import pycryptonight
         cnHeader = header[81:]
         return pycryptonight.cn_fast_hash(cnHeader)
-
-    @classmethod
-    def hashX_from_script(cls, script):
-        _, address_script = cls.interpret_name_prefix(script, cls.NAME_OPERATIONS)
-
-        return super().hashX_from_script(address_script)
