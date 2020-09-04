@@ -29,6 +29,7 @@ class MemPoolTx(object):
     out_pairs = attr.ib()
     fee = attr.ib()
     size = attr.ib()
+    nameout = attr.ib()
 
 
 @attr.s(slots=True)
@@ -99,6 +100,7 @@ class MemPool(object):
 
        tx:     tx_hash -> MemPoolTx
        hashXs: hashX   -> set of all hashes of txs touching the hashX
+       nameXs: nameX   -> set of all hashes of txs touching the nameX
     '''
 
     def __init__(self, coin, api, refresh_secs=5.0, log_status_secs=60.0):
@@ -108,6 +110,7 @@ class MemPool(object):
         self.logger = class_logger(__name__, self.__class__.__name__)
         self.txs = {}
         self.hashXs = defaultdict(set)  # None can be a key
+        self.nameXs = defaultdict(set)  # None can be a key
         self.cached_compact_histogram = []
         self.refresh_secs = refresh_secs
         self.log_status_secs = log_status_secs
@@ -172,6 +175,7 @@ class MemPool(object):
         Returns an (unprocessed tx_map, unspent utxo_map) pair.
         '''
         hashXs = self.hashXs
+        nameXs = self.nameXs
         txs = self.txs
 
         deferred = {}
@@ -206,6 +210,9 @@ class MemPool(object):
                 touched.add(hashX)
                 hashXs[hashX].add(hash)
 
+            if tx.nameout:
+                nameXs[tx.nameout].add(hash)
+
         return deferred, {prevout: utxo_map[prevout] for prevout in unspent}
 
     async def _refresh_hashes(self, synchronized_event):
@@ -237,6 +244,7 @@ class MemPool(object):
         # Re-sync with the new set of hashes
         txs = self.txs
         hashXs = self.hashXs
+        nameXs = self.nameXs
 
         if mempool_height != self.api.db_height():
             raise DBSyncError
@@ -250,6 +258,12 @@ class MemPool(object):
                 hashXs[hashX].remove(tx_hash)
                 if not hashXs[hashX]:
                     del hashXs[hashX]
+
+                if nameXs[tx.nameout]:
+                    nameXs[tx.nameout].remove(tx_hash)
+                if not nameXs[tx.nameout]:
+                    del nameXs[tx.nameout]
+
             touched.update(tx_hashXs)
 
         # Process new transactions
@@ -287,6 +301,7 @@ class MemPool(object):
 
         def deserialize_txs():    # This function is pure
             to_hashX = self.coin.hashX_from_script
+            to_nameX = self.coin.name_hashX_from_script
             deserializer = self.coin.DESERIALIZER
 
             txs = {}
@@ -303,8 +318,15 @@ class MemPool(object):
                                    if not txin.is_generation())
                 txout_pairs = tuple((to_hashX(txout.pk_script), txout.value)
                                     for txout in tx.outputs)
+                if to_nameX:
+                    for txout in tx.outputs:
+                        nameout = to_nameX(txout.pk_script)
+                        if nameout:
+                            # Only one nameout in each tx.
+                            break
+
                 txs[hash] = MemPoolTx(txin_pairs, None, txout_pairs,
-                                      0, tx_size)
+                                      0, tx_size, nameout)
             return txs
 
         # Thread this potentially slow operation so as not to block
@@ -371,6 +393,12 @@ class MemPool(object):
             tx = self.txs[tx_hash]
             has_ui = any(hash in self.txs for hash, idx in tx.prevouts)
             result.append(MemPoolTxSummary(tx_hash, tx.fee, has_ui))
+
+        for tx_hash in self.nameXs.get(hashX, ()):
+            tx = self.txs[tx_hash]
+            has_ui = any(hash in self.txs for hash, idx in tx.prevouts)
+            result.append(MemPoolTxSummary(tx_hash, tx.fee, has_ui))
+
         return result
 
     async def unordered_UTXOs(self, hashX):
