@@ -252,17 +252,20 @@ class MemPool(object):
         # First handle txs that have disappeared
         for tx_hash in set(txs).difference(all_hashes):
             tx = txs.pop(tx_hash)
+
+            # If it is a name transaction, remove the index.
+            if tx.nameout:
+                if nameXs[tx.nameout]:
+                    nameXs[tx.nameout].remove(tx_hash)
+                if not nameXs[tx.nameout]:
+                    del nameXs[tx.nameout]
+
             tx_hashXs = set(hashX for hashX, value in tx.in_pairs)
             tx_hashXs.update(hashX for hashX, value in tx.out_pairs)
             for hashX in tx_hashXs:
                 hashXs[hashX].remove(tx_hash)
                 if not hashXs[hashX]:
                     del hashXs[hashX]
-
-                if nameXs[tx.nameout]:
-                    nameXs[tx.nameout].remove(tx_hash)
-                if not nameXs[tx.nameout]:
-                    del nameXs[tx.nameout]
 
             touched.update(tx_hashXs)
 
