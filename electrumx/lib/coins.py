@@ -3439,6 +3439,9 @@ class Kevacoin(NameIndexMixin, Coin):
         'ec1.kevacoin.org s',
     ]
 
+    # Kevacoin specific block processor
+    BLOCK_PROCESSOR = block_proc.KevaIndexBlockProcessor
+
     # Op-codes for name operations, customized for Keva
     OP_NAME_REGISTER = OpCodes.OP_KEVA_NAMESPACE
     OP_NAME_UPDATE = OpCodes.OP_KEVA_PUT
@@ -3446,9 +3449,9 @@ class Kevacoin(NameIndexMixin, Coin):
 
     # Valid name prefixes.
     NAME_NAMESPACE_OPS = [OP_NAME_REGISTER, "name", -1, OpCodes.OP_2DROP]
-    NAME_PUT_OPS = [OP_NAME_UPDATE, "name", -1, -1,
+    NAME_PUT_OPS = [OP_NAME_UPDATE, "name", "key", -1,
                             OpCodes.OP_2DROP, OpCodes.OP_DROP]
-    NAME_DELETE_OPS = [OP_NAME_DELETE, "name", -1, OpCodes.OP_2DROP]
+    NAME_DELETE_OPS = [OP_NAME_DELETE, "name", "key", OpCodes.OP_2DROP]
     NAME_OPERATIONS = [
         NAME_NAMESPACE_OPS,
         NAME_PUT_OPS,
@@ -3460,3 +3463,50 @@ class Kevacoin(NameIndexMixin, Coin):
         import pycryptonight
         cnHeader = header[81:]
         return pycryptonight.cn_fast_hash(cnHeader)
+
+    @classmethod
+    def split_key_script(cls, script):
+        named_values, address_script = cls.interpret_name_prefix(script, cls.NAME_OPERATIONS)
+        if named_values is None or ("name" not in named_values or "key" not in named_values):
+            return None, address_script
+
+        # Build index if the key has a certain pattern.
+        key = named_values["key"][1]
+        # The pattern is: :<tx_id>:
+        if not re.match(r"^:\b[a-z0-9]{64}\b:", key.decode("utf-8")):
+            return None, address_script
+
+        name_index_script = cls.build_name_index_script(key)
+        return name_index_script, address_script
+
+    @classmethod
+    def split_name_key_script(cls, script):
+        named_values, address_script = cls.interpret_name_prefix(script, cls.NAME_OPERATIONS)
+        if named_values is None or ("name" not in named_values or "key" not in named_values):
+            return None, address_script
+
+        name = named_values["name"][1]
+        key = named_values["key"][1]
+        # The pattern is: #!
+        if not re.match(r"^#!", key.decode("utf-8")):
+            return None, address_script
+
+        # Build index if the key has a certain pattern.
+        name_index_script = cls.build_name_index_script(name + key)
+        return name_index_script, address_script
+
+    @classmethod
+    def key_hashX_from_script(cls, script):
+        name_index_script, _ = cls.split_key_script(script)
+        if name_index_script is None:
+            return None
+
+        return super().hashX_from_script(name_index_script)
+
+    @classmethod
+    def name_key_hashX_from_script(cls, script):
+        name_index_script, _ = cls.split_name_key_script(script)
+        if name_index_script is None:
+            return None
+
+        return super().hashX_from_script(name_index_script)

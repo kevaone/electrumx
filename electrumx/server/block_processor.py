@@ -831,3 +831,44 @@ class LTORBlockProcessor(BlockProcessor):
                 add_touched(cache_value[:-12])
 
         self.tx_count -= len(txs)
+
+
+class KevaIndexBlockProcessor(BlockProcessor):
+
+    def advance_txs(self, txs, is_unspendable):
+        result = super().advance_txs(txs, is_unspendable)
+
+        tx_num = self.tx_count - len(txs)
+        script_name_hashX = self.coin.name_hashX_from_script
+        script_key_hashX = self.coin.key_hashX_from_script
+        script_name_key_hashX = self.coin.name_key_hashX_from_script
+        update_touched = self.touched.update
+        hashXs_by_tx = []
+        append_hashXs = hashXs_by_tx.append
+
+        for tx, _tx_hash in txs:
+            hashXs = []
+            append_hashX = hashXs.append
+
+            # Add the new UTXOs and associate them with the name script
+            for txout in tx.outputs:
+                # Get the hashX of the name script.  Ignore non-name scripts.
+                hashX = script_name_hashX(txout.pk_script)
+                if hashX:
+                    append_hashX(hashX)
+
+                hashKeyX = script_key_hashX(txout.pk_script)
+                if hashKeyX:
+                    append_hashX(hashKeyX)
+
+                hashKeyNameX = script_name_key_hashX(txout.pk_script)
+                if hashKeyNameX:
+                    append_hashX(hashKeyNameX)
+
+            append_hashXs(hashXs)
+            update_touched(hashXs)
+            tx_num += 1
+
+        self.db.history.add_unflushed(hashXs_by_tx, self.tx_count - len(txs))
+
+        return result
