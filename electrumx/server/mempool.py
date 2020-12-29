@@ -30,6 +30,8 @@ class MemPoolTx(object):
     fee = attr.ib()
     size = attr.ib()
     nameout = attr.ib()
+    keyout = attr.ib()
+    namekeyout = attr.ib()
 
 
 @attr.s(slots=True)
@@ -213,6 +215,13 @@ class MemPool(object):
             if tx.nameout:
                 nameXs[tx.nameout].add(hash)
 
+            # Kevacoin specific
+            if tx.keyout:
+                nameXs[tx.keyout].add(hash)
+
+            if tx.namekeyout:
+                nameXs[tx.namekeyout].add(hash)
+
         return deferred, {prevout: utxo_map[prevout] for prevout in unspent}
 
     async def _refresh_hashes(self, synchronized_event):
@@ -260,6 +269,19 @@ class MemPool(object):
                 if not nameXs[tx.nameout]:
                     del nameXs[tx.nameout]
 
+            # Kevacoin specific
+            if tx.keyout:
+                if nameXs[tx.keyout]:
+                    nameXs[tx.keyout].remove(tx_hash)
+                if not nameXs[tx.keyout]:
+                    del nameXs[tx.keyout]
+
+            if tx.namekeyout:
+                if nameXs[tx.namekeyout]:
+                    nameXs[tx.namekeyout].remove(tx_hash)
+                if not nameXs[tx.namekeyout]:
+                    del nameXs[tx.namekeyout]
+
             tx_hashXs = set(hashX for hashX, value in tx.in_pairs)
             tx_hashXs.update(hashX for hashX, value in tx.out_pairs)
             for hashX in tx_hashXs:
@@ -305,6 +327,11 @@ class MemPool(object):
         def deserialize_txs():    # This function is pure
             to_hashX = self.coin.hashX_from_script
             to_nameX = self.coin.name_hashX_from_script
+
+            # Kevacoin specific methods
+            to_keyX = self.coin.key_hashX_from_script
+            to_nameKeyX = self.coin.name_key_hashX_from_script
+
             deserializer = self.coin.DESERIALIZER
 
             txs = {}
@@ -328,8 +355,21 @@ class MemPool(object):
                             # Only one nameout in each tx.
                             break
 
+                # Kevacoin specific
+                if to_keyX:
+                    for txout in tx.outputs:
+                        keyout = to_keyX(txout.pk_script)
+                        if keyout:
+                            break
+
+                if to_nameKeyX:
+                    for txout in tx.outputs:
+                        namekeyout = to_nameKeyX(txout.pk_script)
+                        if namekeyout:
+                            break
+
                 txs[hash] = MemPoolTx(txin_pairs, None, txout_pairs,
-                                      0, tx_size, nameout)
+                                      0, tx_size, nameout, keyout, namekeyout)
             return txs
 
         # Thread this potentially slow operation so as not to block

@@ -12,3 +12,6 @@ docs/_build
 .vscode/
 .mypy_cache/
 .idea/
+database_dir
+rocksdb_dir
+electrumX.egg-info
