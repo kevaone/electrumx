@@ -3472,8 +3472,8 @@ class Kevacoin(NameIndexMixin, Coin):
 
         # Build index if the key has a certain pattern.
         key = named_values["key"][1]
-        # The pattern is: :<tx_id>:
-        if not re.match(r"^:\b[a-z0-9]{16}\b:", key.decode("utf-8")):
+        # The pattern is: <base64>=
+        if not re.match(r"^\b[a-zA-Z0-9+/]{43}\b=", key.decode("utf-8")):
             return None, address_script
 
         name_index_script = cls.build_name_index_script(key)
