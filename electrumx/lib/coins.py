@@ -3449,7 +3449,7 @@ class Kevacoin(NameIndexMixin, Coin):
 
     # Valid name prefixes.
     NAME_NAMESPACE_OPS = [OP_NAME_REGISTER, "name", -1, OpCodes.OP_2DROP]
-    NAME_PUT_OPS = [OP_NAME_UPDATE, "name", "key", -1,
+    NAME_PUT_OPS = [OP_NAME_UPDATE, "name", "key", "value",
                             OpCodes.OP_2DROP, OpCodes.OP_DROP]
     NAME_DELETE_OPS = [OP_NAME_DELETE, "name", "key", OpCodes.OP_2DROP]
     NAME_OPERATIONS = [
@@ -3471,13 +3471,14 @@ class Kevacoin(NameIndexMixin, Coin):
             return None, address_script
 
         # Build index if the key has a certain pattern.
+        # i.e. it starts with 0x00.
         key = named_values["key"][1]
-        # The pattern is: <base64>=
-        if not re.match(r"^\b[a-zA-Z0-9+/]{43}\b=", key.decode("utf-8")):
+        if not key.startswith(b'\x00'):
             return None, address_script
 
         name_index_script = cls.build_name_index_script(key)
         return name_index_script, address_script
+
 
     @classmethod
     def split_name_key_script(cls, script):
@@ -3487,13 +3488,30 @@ class Kevacoin(NameIndexMixin, Coin):
 
         name = named_values["name"][1]
         key = named_values["key"][1]
-        # The pattern is: #!
-        if not re.match(r"^#!", key.decode("utf-8")):
+        # Build index if the key has a certain pattern.
+        # i.e. it starts with 0x01. We will index both namespace and key.
+        if not key.startswith(b'\x01'):
             return None, address_script
 
-        # Build index if the key has a certain pattern.
         name_index_script = cls.build_name_index_script(name + key)
         return name_index_script, address_script
+
+    @classmethod
+    def split_key_value_script(cls, script):
+        named_values, address_script = cls.interpret_name_prefix(script, cls.NAME_OPERATIONS)
+        if named_values is None or ("key" not in named_values or "value" not in named_values):
+            return None, address_script
+
+        key = named_values["key"][1]
+        value = named_values["value"][1]
+        # Find the hashtags in key and value and build index.
+        combined = (key + value).decode("utf-8")
+        hashtags = re.findall(r"#(\w+)", combined)
+        value_index_scripts = []
+        for h in hashtags:
+            value_index_scripts.append(cls.build_name_index_script(str.encode(h)))
+
+        return value_index_scripts, address_script
 
     @classmethod
     def key_hashX_from_script(cls, script):
@@ -3510,3 +3528,15 @@ class Kevacoin(NameIndexMixin, Coin):
             return None
 
         return super().hashX_from_script(name_index_script)
+
+    @classmethod
+    def key_value_hashX_from_script(cls, script):
+        value_index_scripts, _ = cls.split_key_value_script(script)
+        if value_index_scripts is None:
+            return None
+
+        valueHashX = []
+        for v in value_index_scripts:
+            valueHashX.append(super().hashX_from_script(v))
+
+        return valueHashX

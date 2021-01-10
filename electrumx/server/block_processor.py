@@ -842,6 +842,7 @@ class KevaIndexBlockProcessor(BlockProcessor):
         script_name_hashX = self.coin.name_hashX_from_script
         script_key_hashX = self.coin.key_hashX_from_script
         script_name_key_hashX = self.coin.name_key_hashX_from_script
+        script_key_value_hashX = self.coin.key_value_hashX_from_script
         update_touched = self.touched.update
         hashXs_by_tx = []
         append_hashXs = hashXs_by_tx.append
@@ -864,6 +865,10 @@ class KevaIndexBlockProcessor(BlockProcessor):
                 hashKeyNameX = script_name_key_hashX(txout.pk_script)
                 if hashKeyNameX:
                     append_hashX(hashKeyNameX)
+
+                hashKeyValueX = script_key_value_hashX(txout.pk_script)
+                for h in hashKeyValueX:
+                    append_hashX(h)
 
             append_hashXs(hashXs)
             update_touched(hashXs)
