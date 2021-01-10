@@ -3497,6 +3497,13 @@ class Kevacoin(NameIndexMixin, Coin):
         return name_index_script, address_script
 
     @classmethod
+    def get_utf8_if_valid(cls, str):
+        try:
+            return str.decode('utf-8')
+        except UnicodeDecodeError:
+            return ""
+
+    @classmethod
     def split_key_value_script(cls, script):
         named_values, address_script = cls.interpret_name_prefix(script, cls.NAME_OPERATIONS)
         if named_values is None or ("key" not in named_values or "value" not in named_values):
@@ -3505,7 +3512,7 @@ class Kevacoin(NameIndexMixin, Coin):
         key = named_values["key"][1]
         value = named_values["value"][1]
         # Find the hashtags in key and value and build index.
-        combined = (key + value).decode("utf-8")
+        combined = cls.get_utf8_if_valid(key) + cls.get_utf8_if_valid(value)
         hashtags = re.findall(r"#(\w+)", combined)
         value_index_scripts = []
         for h in hashtags:
