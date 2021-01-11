@@ -867,7 +867,7 @@ class KevaIndexBlockProcessor(BlockProcessor):
                     append_hashX(hashKeyNameX)
 
                 hashKeyValueX = script_key_value_hashX(txout.pk_script)
-                for h in hashKeyValueX:
+                for h in hashKeyValueX or []:
                     append_hashX(h)
 
             append_hashXs(hashXs)
