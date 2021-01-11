@@ -3516,7 +3516,7 @@ class Kevacoin(NameIndexMixin, Coin):
         hashtags = re.findall(r"#(\w+)", combined)
         value_index_scripts = []
         for h in hashtags:
-            value_index_scripts.append(cls.build_name_index_script(str.encode(h)))
+            value_index_scripts.append(cls.build_name_index_script(str.encode(h.lower())))
 
         return value_index_scripts, address_script
 
