@@ -3448,7 +3448,7 @@ class Kevacoin(NameIndexMixin, Coin):
     OP_NAME_DELETE = OpCodes.OP_KEVA_DELETE
 
     # Valid name prefixes.
-    NAME_NAMESPACE_OPS = [OP_NAME_REGISTER, "name", -1, OpCodes.OP_2DROP]
+    NAME_NAMESPACE_OPS = [OP_NAME_REGISTER, "name", "key", OpCodes.OP_2DROP]
     NAME_PUT_OPS = [OP_NAME_UPDATE, "name", "key", "value",
                             OpCodes.OP_2DROP, OpCodes.OP_DROP]
     NAME_DELETE_OPS = [OP_NAME_DELETE, "name", "key", OpCodes.OP_2DROP]
@@ -3488,6 +3488,11 @@ class Kevacoin(NameIndexMixin, Coin):
 
         name = named_values["name"][1]
         key = named_values["key"][1]
+        if script[0] == 0xd0:
+            # Namespace creation script, special treatment.
+            name_index_script = cls.build_name_index_script(name + b'\x01_KEVA_NS_')
+            return name_index_script, address_script
+
         # Build index if the key has a certain pattern.
         # i.e. it starts with 0x01. We will index both namespace and key.
         if not key.startswith(b'\x01'):
@@ -3515,7 +3520,8 @@ class Kevacoin(NameIndexMixin, Coin):
         combined = cls.get_utf8_if_valid(key) + cls.get_utf8_if_valid(value)
         hashtags = re.findall(r"#(\w+)", combined)
         value_index_scripts = []
-        for h in hashtags:
+        uniqHastags = list(set(hashtags))
+        for h in uniqHastags:
             value_index_scripts.append(cls.build_name_index_script(str.encode(h.lower())))
 
         return value_index_scripts, address_script
