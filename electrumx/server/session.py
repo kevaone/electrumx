@@ -744,6 +744,47 @@ class SessionManager:
             raise result
         return result, cost
 
+    def filter_history_result(self, all_result, start_height, max_count):
+        result = []
+        count = 0
+        for tx_hash, height in all_result:
+            if height >= start_height:
+                count += 1
+                result.append((tx_hash, height))
+                if count > max_count:
+                    break
+        return result
+
+    def keva_expand_history(self, result):
+        return []
+
+    async def keva_limited_history(self, hashX, start_height, max_count):
+        '''Returns a pair (history, cost).
+
+        History is a sorted list of (tx_hash, height) tuples, or an RPCError.'''
+        # History DoS limit.  Each element of history is about 99 bytes when encoded
+        # as JSON.
+        limit = self.env.max_send // 99
+        cost = 0.1
+        self._history_lookups += 1
+
+        try:
+            all_result = self._history_cache[hashX]
+            self._history_hits += 1
+            result = self.filter_history_result(all_result, start_height, max_count)
+
+        except KeyError:
+            all_result = await self.db.limited_history(hashX, limit=limit)
+            cost += 0.1 + len(all_result) * 0.001
+            if len(all_result) >= limit:
+                raise RPCError(BAD_REQUEST, f'history too large', cost=cost)
+            else:
+                self._history_cache[hashX] = all_result
+                result = self.filter_history_result(all_result, start_height, max_count)
+
+        expanded_result = self.keva_expand_history(result)
+        return expanded_result, cost
+
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
         # Invalidate our height-based caches in case of a reorg.  Increment the cache
@@ -1413,6 +1454,8 @@ class ElectrumX(SessionBase):
             'server.peers.subscribe': self.peers_subscribe,
             'server.ping': self.ping,
             'server.version': self.server_version,
+            'keva.scripthash.get_history': self.keva_scripthash_get_history,
+            'keva.transaction.get': self.keva_transaction_get,
         }
 
         if ptuple >= (1, 4, 2):
@@ -1420,6 +1463,11 @@ class ElectrumX(SessionBase):
 
         self.request_handlers = handlers
 
+    async def keva_scripthash_get_history(self, scripthash):
+        return None
+
+    async def keva_transaction_get(self, tx_hash, verbose=False):
+        return None
 
 class LocalRPC(SessionBase):
     '''A local TCP RPC server session.'''
