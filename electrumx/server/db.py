@@ -94,7 +94,7 @@ class DB(object):
         self.db_version = -1
 
         # Keva
-        self.keva = Keva()
+        self.keva = Keva(self.coin)
 
         self.logger.info(f'using {self.env.db_engine} for DB backend')
 

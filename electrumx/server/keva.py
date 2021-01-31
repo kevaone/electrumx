@@ -25,10 +25,12 @@ class Keva(object):
 
     DB_VERSIONS = [0]
 
-    def __init__(self):
+    def __init__(self, coin):
         self.logger = util.class_logger(__name__, self.__class__.__name__)
         self.db_version = max(self.DB_VERSIONS)
         self.db = None
+        self.interpret_name_prefix = coin.interpret_name_prefix
+        self.NAME_OPERATIONS = coin.NAME_OPERATIONS
 
     def open_db(self, db_class, for_sync):
         self.db = db_class('keva', for_sync)
@@ -43,3 +45,8 @@ class Keva(object):
 
     def get_keva_script(self, tx_id):
         return self.db.get(tx_id)
+
+    def parse_keva_script(self, keva_script):
+        name_values, _ = self.interpret_name_prefix(keva_script, self.NAME_OPERATIONS)
+        name_values['op'] = keva_script[0]
+        return name_values
