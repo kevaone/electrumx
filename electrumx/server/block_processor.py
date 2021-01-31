@@ -847,6 +847,7 @@ class KevaIndexBlockProcessor(BlockProcessor):
         update_touched = self.touched.update
         hashXs_by_tx = []
         append_hashXs = hashXs_by_tx.append
+        keva_scripts = []
 
         for tx, _tx_hash in txs:
             hashXs = []
@@ -861,7 +862,7 @@ class KevaIndexBlockProcessor(BlockProcessor):
                     # Store key-value script by tx id.
                     _, address_script = split_name_script(txout.pk_script)
                     keva_script_len = len(txout.pk_script) - len(address_script)
-                    self.db.keva.put_keva_script(_tx_hash[0:16], txout.pk_script[0:keva_script_len])
+                    keva_scripts.append((_tx_hash, txout.pk_script[0:keva_script_len]))
 
                 hashKeyX = script_key_hashX(txout.pk_script)
                 if hashKeyX:
@@ -879,6 +880,7 @@ class KevaIndexBlockProcessor(BlockProcessor):
             update_touched(hashXs)
             tx_num += 1
 
+        self.db.keva.put_keva_script_batch(keva_scripts)
         self.db.history.add_unflushed(hashXs_by_tx, self.tx_count - len(txs))
 
         return result

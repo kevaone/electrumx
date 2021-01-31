@@ -755,6 +755,9 @@ class SessionManager:
                     break
         return result
 
+    async def get_keva_script(self, tx_hash):
+        return await self.db.get_keva_script(tx_hash)
+
     def keva_expand_history(self, result):
         return []
 
@@ -1428,6 +1431,16 @@ class ElectrumX(SessionBase):
         self.bump_cost(1.0)
         return await self.mempool.compact_fee_histogram()
 
+    async def kevascripthash_get_history(self, scripthash):
+        return None
+
+    async def kevascript_get(self, tx_hash):
+        keva_script = self.mempool.keva_script(tx_hash)
+        if keva_script:
+            return keva_script
+
+        return await self.session_mgr.get_keva_script(tx_hash)
+
     def set_request_handlers(self, ptuple):
         self.protocol_tuple = ptuple
 
@@ -1446,6 +1459,8 @@ class ElectrumX(SessionBase):
             'blockchain.transaction.get': self.transaction_get,
             'blockchain.transaction.get_merkle': self.transaction_merkle,
             'blockchain.transaction.id_from_pos': self.transaction_id_from_pos,
+            'blockchain.kevascripthash.get_history': self.kevascripthash_get_history,
+            'blockchain.kevascript.get': self.kevascript_get,
             'mempool.get_fee_histogram': self.mempool.compact_fee_histogram,
             'server.add_peer': self.add_peer,
             'server.banner': self.banner,
@@ -1454,20 +1469,12 @@ class ElectrumX(SessionBase):
             'server.peers.subscribe': self.peers_subscribe,
             'server.ping': self.ping,
             'server.version': self.server_version,
-            'keva.scripthash.get_history': self.keva_scripthash_get_history,
-            'keva.transaction.get': self.keva_transaction_get,
         }
 
         if ptuple >= (1, 4, 2):
             handlers['blockchain.scripthash.unsubscribe'] = self.scripthash_unsubscribe
 
         self.request_handlers = handlers
-
-    async def keva_scripthash_get_history(self, scripthash):
-        return None
-
-    async def keva_transaction_get(self, tx_hash, verbose=False):
-        return None
 
 class LocalRPC(SessionBase):
     '''A local TCP RPC server session.'''

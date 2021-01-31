@@ -94,7 +94,7 @@ class DB(object):
         self.db_version = -1
 
         # Keva
-        self.keva = Keva(self.coin)
+        self.keva = Keva()
 
         self.logger.info(f'using {self.env.db_engine} for DB backend')
 
@@ -465,6 +465,9 @@ class DB(object):
             offset += hlen
 
         return [self.coin.header_hash(header) for header in headers]
+
+    async def get_keva_script(self, tx_hash):
+        return await self.keva.get_keva_script(tx_hash)
 
     async def limited_history(self, hashX, *, limit=1000):
         '''Return an unpruned, sorted list of (tx_hash, height) tuples of

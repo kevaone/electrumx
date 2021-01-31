@@ -32,6 +32,7 @@ class MemPoolTx(object):
     nameout = attr.ib()
     keyout = attr.ib()
     namekeyout = attr.ib()
+    keva_script = attr.ib()
 
 
 @attr.s(slots=True)
@@ -331,6 +332,7 @@ class MemPool(object):
             # Kevacoin specific methods
             to_keyX = self.coin.key_hashX_from_script
             to_nameKeyX = self.coin.name_key_hashX_from_script
+            split_name_script = self.coin.split_name_script
 
             deserializer = self.coin.DESERIALIZER
 
@@ -348,11 +350,16 @@ class MemPool(object):
                                    if not txin.is_generation())
                 txout_pairs = tuple((to_hashX(txout.pk_script), txout.value)
                                     for txout in tx.outputs)
+                keva_script = None
                 if to_nameX:
                     for txout in tx.outputs:
                         nameout = to_nameX(txout.pk_script)
                         if nameout:
                             # Only one nameout in each tx.
+                            # Also keep the keva script.
+                            _, address_script = split_name_script(txout.pk_script)
+                            keva_script_len = len(txout.pk_script) - len(address_script)
+                            keva_script = txout.pk_script[0:keva_script_len]
                             break
 
                 # Kevacoin specific
@@ -369,7 +376,7 @@ class MemPool(object):
                             break
 
                 txs[hash] = MemPoolTx(txin_pairs, None, txout_pairs,
-                                      0, tx_size, nameout, keyout, namekeyout)
+                                      0, tx_size, nameout, keyout, namekeyout, keva_script)
             return txs
 
         # Thread this potentially slow operation so as not to block
@@ -458,3 +465,10 @@ class MemPool(object):
                 if hX == hashX:
                     utxos.append(UTXO(-1, pos, tx_hash, 0, value))
         return utxos
+
+    def keva_script(self, tx_hash):
+        tx = self.txs[tx_hash]
+        if not tx:
+            return None
+
+        return tx.keva_script

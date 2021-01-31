@@ -9,12 +9,7 @@
 
 '''Key-value by tx id.'''
 
-import array
-import ast
-import bisect
-import time
-from collections import defaultdict
-from functools import partial
+from aiorpcx import TaskGroup, run_in_thread
 
 import electrumx.lib.util as util
 from electrumx.lib.util import pack_be_uint16, unpack_be_uint16_from
@@ -24,13 +19,14 @@ from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN
 class Keva(object):
 
     DB_VERSIONS = [0]
+    # Only use first 16 bytes of tx hash to save space.
+    # The chance of collision is extremely small.
+    PARTIAL_TX_HASH = 16
 
-    def __init__(self, coin):
+    def __init__(self):
         self.logger = util.class_logger(__name__, self.__class__.__name__)
         self.db_version = max(self.DB_VERSIONS)
         self.db = None
-        self.interpret_name_prefix = coin.interpret_name_prefix
-        self.NAME_OPERATIONS = coin.NAME_OPERATIONS
 
     def open_db(self, db_class, for_sync):
         self.db = db_class('keva', for_sync)
@@ -40,13 +36,13 @@ class Keva(object):
             self.db.close()
             self.db = None
 
-    def put_keva_script(self, tx_id, keva_script):
-        self.db.put(tx_id, keva_script)
+    def put_keva_script(self, tx_hash, keva_script):
+        self.db.put(tx_hash[0:self.PARTIAL_TX_HASH], keva_script)
 
-    def get_keva_script(self, tx_id):
-        return self.db.get(tx_id)
+    def put_keva_script_batch(self, keva_script_batch):
+        with self.db.write_batch() as batch:
+            for tx_hash, keva_script in keva_script_batch:
+                batch.put(tx_hash[0:self.PARTIAL_TX_HASH], keva_script)
 
-    def parse_keva_script(self, keva_script):
-        name_values, _ = self.interpret_name_prefix(keva_script, self.NAME_OPERATIONS)
-        name_values['op'] = keva_script[0]
-        return name_values
+    async def get_keva_script(self, tx_hash):
+        return await run_in_thread(self.db.get, tx_hash[0:self.PARTIAL_TX_HASH])

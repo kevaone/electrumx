@@ -3553,3 +3553,9 @@ class Kevacoin(NameIndexMixin, Coin):
             valueHashX.append(super().hashX_from_script(v))
 
         return valueHashX
+
+    @classmethod
+    def parse_keva_script(cls, keva_script):
+        name_values, _ = cls.interpret_name_prefix(keva_script, cls.NAME_OPERATIONS)
+        name_values['op'] = keva_script[0]
+        return name_values
