@@ -30,6 +30,7 @@ from electrumx.lib.util import (
 )
 from electrumx.server.storage import db_class
 from electrumx.server.history import History
+from electrumx.server.keva import Keva
 
 
 UTXO = namedtuple("UTXO", "tx_num tx_pos tx_hash height value")
@@ -92,6 +93,9 @@ class DB(object):
         self.first_sync = True
         self.db_version = -1
 
+        # Keva
+        self.keva = Keva()
+
         self.logger.info(f'using {self.env.db_engine} for DB backend')
 
         # Header merkle cache
@@ -143,6 +147,9 @@ class DB(object):
                                                      compacting)
         self.clear_excess_undo_info()
 
+        # Keva DB
+        self.keva.open_db(self.db_class, for_sync)
+
         # Read TX counts (requires meta directory)
         await self._read_tx_counts()
 
@@ -166,6 +173,7 @@ class DB(object):
             self.logger.info('closing DBs to re-open for serving')
             self.utxo_db.close()
             self.history.close_db()
+            self.keva.close_db()
             self.utxo_db = None
         await self._open_dbs(False, False)
 

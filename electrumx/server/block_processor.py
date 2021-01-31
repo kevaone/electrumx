@@ -839,6 +839,7 @@ class KevaIndexBlockProcessor(BlockProcessor):
         result = super().advance_txs(txs, is_unspendable)
 
         tx_num = self.tx_count - len(txs)
+        split_name_script  = self.coin.split_name_script
         script_name_hashX = self.coin.name_hashX_from_script
         script_key_hashX = self.coin.key_hashX_from_script
         script_name_key_hashX = self.coin.name_key_hashX_from_script
@@ -857,6 +858,10 @@ class KevaIndexBlockProcessor(BlockProcessor):
                 hashX = script_name_hashX(txout.pk_script)
                 if hashX:
                     append_hashX(hashX)
+                    # Store key-value script by tx id.
+                    _, address_script = split_name_script(txout.pk_script)
+                    keva_script_len = len(txout.pk_script) - len(address_script)
+                    self.db.keva.put_keva_script(_tx_hash[0:16], txout.pk_script[0:keva_script_len])
 
                 hashKeyX = script_key_hashX(txout.pk_script)
                 if hashKeyX:
