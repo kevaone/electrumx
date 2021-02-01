@@ -110,6 +110,8 @@ class SessionReferences:
 class SessionManager:
     '''Holds global state about all sessions.'''
 
+    HASHTAG_LIMIT = 25
+
     def __init__(self, env, db, bp, daemon, mempool, shutdown_event):
         env.max_send = max(350000, env.max_send)
         self.env = env
@@ -744,6 +746,13 @@ class SessionManager:
             raise result
         return result, cost
 
+    async def get_hashtag(self, hashX, start_tx_num=-1):
+        ''' List hashtags '''
+        result = await self.db.get_hashtag(hashX, self.HASHTAG_LIMIT, start_tx_num=start_tx_num)
+        cost = 0.2 + len(result['hashtags']) * 0.001
+        return result, cost
+
+
     def filter_history_result(self, all_result, start_height, max_count):
         result = []
         count = 0
@@ -765,6 +774,30 @@ class SessionManager:
         '''Returns a pair (history, cost).
 
         History is a sorted list of (tx_hash, height) tuples, or an RPCError.'''
+        # History DoS limit.  Each element of history is about 99 bytes when encoded
+        # as JSON.
+        limit = self.env.max_send // 99
+        cost = 0.1
+        self._history_lookups += 1
+
+        try:
+            all_result = self._history_cache[hashX]
+            self._history_hits += 1
+            result = self.filter_history_result(all_result, start_height, max_count)
+
+        except KeyError:
+            all_result = await self.db.limited_history(hashX, limit=limit)
+            cost += 0.1 + len(all_result) * 0.001
+            if len(all_result) >= limit:
+                raise RPCError(BAD_REQUEST, f'history too large', cost=cost)
+            else:
+                self._history_cache[hashX] = all_result
+                result = self.filter_history_result(all_result, start_height, max_count)
+
+        expanded_result = self.keva_expand_history(result)
+        return expanded_result, cost
+
+    async def keva_hashtag_history(self, hashX, start_height, max_count):
         # History DoS limit.  Each element of history is about 99 bytes when encoded
         # as JSON.
         limit = self.env.max_send // 99
@@ -1147,6 +1180,19 @@ class ElectrumX(SessionBase):
                 for tx_hash, height in history]
         return conf + await self.unconfirmed_history(hashX)
 
+    async def get_hashtag(self, scripthash, start_tx_num):
+        hashX = scripthash_to_hashX(scripthash)
+        if not start_tx_num:
+            start_tx_num = -1
+        else:
+            start_tx_num = int(start_tx_num)
+
+        history, cost = await self.session_mgr.get_hashtag(hashX, start_tx_num)
+        self.bump_cost(cost)
+        hashtags = [{'tx_hash': hash_to_hex_str(tx_hash), 'height': height}
+                for tx_hash, height in history['hashtags']]
+        return {'hashtags': hashtags, 'min_tx_num': history['min_tx_num']}
+
     async def scripthash_get_history(self, scripthash):
         '''Return the confirmed and unconfirmed history of a scripthash.'''
         hashX = scripthash_to_hashX(scripthash)
@@ -1461,6 +1507,7 @@ class ElectrumX(SessionBase):
             'blockchain.transaction.id_from_pos': self.transaction_id_from_pos,
             'blockchain.kevascripthash.get_history': self.kevascripthash_get_history,
             'blockchain.kevascript.get': self.kevascript_get,
+            'blockchain.keva.get_hashtag': self.get_hashtag,
             'mempool.get_fee_histogram': self.mempool.compact_fee_histogram,
             'server.add_peer': self.add_peer,
             'server.banner': self.banner,

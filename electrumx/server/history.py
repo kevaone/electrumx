@@ -192,6 +192,26 @@ class History(object):
                 yield tx_num
                 limit -= 1
 
+    def get_hashtag(self, hashX, limit, start_tx_num=-1):
+        ''' Get the latest hashtags
+        start_tx_num: if -1, get the latest. Otherwise return tx whose
+        tx number is less than the start_tx_num.
+        limit: the number of txs to return.
+        '''
+        for _key, hist in self.db.iterator(prefix=hashX, reverse=True):
+            a = array.array('I')
+            a.frombytes(hist)
+            a.reverse()
+            for tx_num in a:
+                if limit == 0:
+                    return
+                if start_tx_num < 0:
+                    yield tx_num
+                    limit -= 1
+                elif tx_num < start_tx_num:
+                    yield tx_num
+                    limit -= 1
+
     #
     # History compaction
     #

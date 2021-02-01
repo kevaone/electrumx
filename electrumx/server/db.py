@@ -489,6 +489,25 @@ class DB(object):
                                 f'not found (reorg?), retrying...')
             await sleep(0.25)
 
+    async def get_hashtag(self, hashX, limit, start_tx_num=-1):
+        '''List hashtags.
+        '''
+        def read_hashtag():
+            tx_nums = list(self.history.get_hashtag(hashX, limit, start_tx_num))
+            fs_tx_hash = self.fs_tx_hash
+            min_tx_num = -1
+            if len(tx_nums) > 0:
+                min_tx_num = tx_nums[len(tx_nums) - 1]
+            return ([fs_tx_hash(tx_num) for tx_num in tx_nums], min_tx_num)
+
+        while True:
+            hashtags, min_tx_num = await run_in_thread(read_hashtag)
+            if all(hash is not None for hash, height in hashtags):
+                return {'hashtags': hashtags, 'min_tx_num': min_tx_num}
+            self.logger.warning(f'get_hashtag: tx hash '
+                                f'not found (reorg?), retrying...')
+            await sleep(0.25)
+
     # -- Undo information
 
     def min_undo_height(self, max_height):
