@@ -724,6 +724,9 @@ class SessionManager:
         self.txs_sent += 1
         return hex_hash
 
+    def get_txnums(self, hashX):
+        return list(self.db.history.get_txnums(hashX, 1000000000))
+
     async def limited_history(self, hashX):
         '''Returns a pair (history, cost).
 
@@ -1219,7 +1222,7 @@ class ElectrumX(SessionBase):
 
         history, cost = await self.session_mgr.get_hashtag(hashX, start_tx_num)
         self.bump_cost(cost)
-        # TODO: expand tx_hash to contain key-value info.
+
         coin = self.coin
         build_name_index_script = coin.build_name_index_script
         hashX_from_script = coin.hashX_from_script
@@ -1234,22 +1237,24 @@ class ElectrumX(SessionBase):
             reversed_tx_hash = bytes(reversed(tx_hash))
             # Find number of replies
             replyHashX = hashX_from_script(build_name_index_script(b'\x00\x01' + reversed_tx_hash))
-            replies = await self.confirmed_and_unconfirmed_history(replyHashX)
-            print(replies)
+            # TODO:
+            # 1. handle unconfimed items in memory pool.
+            # 2. faster way to get count?
+            replies = len(self.session_mgr.get_txnums(replyHashX))
+
             # Find number of shares
             shareHashX = hashX_from_script(build_name_index_script(b'\x00\x02' + reversed_tx_hash))
-            shares = await self.confirmed_and_unconfirmed_history(shareHashX)
-            print(shares)
+            shares = len(self.session_mgr.get_txnums(shareHashX))
 
             # Find number of likes
             likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
-            likes = await self.confirmed_and_unconfirmed_history(likeHashX)
-            print(likes)
+            likes = len(self.session_mgr.get_txnums(likeHashX))
 
             hashtags.append({
                 'tx_hash': hash_to_hex_str(tx_hash),
                 'display_name': display_name,
                 'height': height, 'shortCode': shortCode,
+                'replies': replies, 'shares': shares, 'likes': likes,
                 'keva': base64.b64encode(keva_script).decode("utf-8")
             })
 
