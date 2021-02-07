@@ -1252,7 +1252,7 @@ class ElectrumX(SessionBase):
 
             hashtags.append({
                 'tx_hash': hash_to_hex_str(tx_hash),
-                'display_name': display_name,
+                'displayName': display_name,
                 'height': height, 'shortCode': shortCode,
                 'replies': replies, 'shares': shares, 'likes': likes,
                 'keva': base64.b64encode(keva_script).decode("utf-8")
@@ -1572,8 +1572,8 @@ class ElectrumX(SessionBase):
             'blockchain.transaction.get': self.transaction_get,
             'blockchain.transaction.get_merkle': self.transaction_merkle,
             'blockchain.transaction.id_from_pos': self.transaction_id_from_pos,
-            'blockchain.kevascripthash.get_history': self.kevascripthash_get_history,
-            'blockchain.kevascript.get': self.kevascript_get,
+            #'blockchain.kevascripthash.get_history': self.kevascripthash_get_history,
+            #'blockchain.kevascript.get': self.kevascript_get,
             'blockchain.keva.get_hashtag': self.get_hashtag,
             'mempool.get_fee_histogram': self.mempool.compact_fee_histogram,
             'server.add_peer': self.add_peer,
