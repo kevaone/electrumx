@@ -39,7 +39,6 @@ from electrumx.server.peers import PeerManager
 BAD_REQUEST = 1
 DAEMON_ERROR = 2
 
-
 def scripthash_to_hashX(scripthash):
     try:
         bin_hash = hex_str_to_hash(scripthash)
@@ -1180,6 +1179,10 @@ class ElectrumX(SessionBase):
                 for tx_hash, height in history]
         return conf + await self.unconfirmed_history(hashX)
 
+    def getShortCode(self, name_height, tx_pos):
+        height_str = str(name_height)
+        return str(len(height_str)) + height_str + str(tx_pos)
+
     async def get_hashtag(self, scripthash, start_tx_num):
         hashX = scripthash_to_hashX(scripthash)
         if not start_tx_num:
@@ -1189,8 +1192,45 @@ class ElectrumX(SessionBase):
 
         history, cost = await self.session_mgr.get_hashtag(hashX, start_tx_num)
         self.bump_cost(cost)
-        hashtags = [{'tx_hash': hash_to_hex_str(tx_hash), 'height': height}
-                for tx_hash, height in history['hashtags']]
+        # TODO: expand tx_hash to contain key-value info.
+        build_name_index_script = self.coin.build_name_index_script
+        hashX_from_script = self.coin.hashX_from_script
+        interpret_name_prefix = self.coin.interpret_name_prefix
+        NAME_OPERATIONS = self.coin.NAME_OPERATIONS
+        hashtags = []
+        for tx_hash, height in history['hashtags']:
+            keva_script = self.mempool.keva_script(tx_hash)
+            if not keva_script:
+                keva_script = await self.session_mgr.get_keva_script(tx_hash)
+
+            # Find user info
+            named_values, _ = interpret_name_prefix(keva_script, NAME_OPERATIONS)
+            namespaceScript = named_values['name'][1] + b'\x01_KEVA_NS_'
+            nameHashX = hashX_from_script(build_name_index_script(namespaceScript))
+            names = await self.confirmed_and_unconfirmed_history(nameHashX)
+            # Get short code
+            name_height = names[0]['height']
+            _, tx_pos, _ = await self.session_mgr.merkle_branch_for_tx_hash(name_height, assert_tx_hash(names[0]['tx_hash']))
+            shortCode = self.getShortCode(name_height, tx_pos)
+
+            reversed_tx_hash = bytes(reversed(tx_hash))
+            # Find number of replies
+            replyHashX = hashX_from_script(build_name_index_script(b'\x00\x01' + reversed_tx_hash))
+            replies = await self.confirmed_and_unconfirmed_history(replyHashX)
+            print(replies)
+            # Find number of shares
+            shareHashX = hashX_from_script(build_name_index_script(b'\x00\x02' + reversed_tx_hash))
+            shares = await self.confirmed_and_unconfirmed_history(shareHashX)
+            print(shares)
+
+            # Find number of likes
+            likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
+            likes = await self.confirmed_and_unconfirmed_history(likeHashX)
+            print(likes)
+
+            #hashtags.append({'tx_hash': hash_to_hex_str(tx_hash), 'height': height, 'keva': keva_script})
+            hashtags.append({'tx_hash': hash_to_hex_str(tx_hash), 'height': height, 'shortCode': shortCode})
+
         return {'hashtags': hashtags, 'min_tx_num': history['min_tx_num']}
 
     async def scripthash_get_history(self, scripthash):

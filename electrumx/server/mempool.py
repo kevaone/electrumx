@@ -467,7 +467,7 @@ class MemPool(object):
         return utxos
 
     def keva_script(self, tx_hash):
-        tx = self.txs[tx_hash]
+        tx = self.txs.get(tx_hash)
         if not tx:
             return None
 
