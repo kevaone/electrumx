@@ -1273,6 +1273,11 @@ class ElectrumX(SessionBase):
             if 'value' in named_values:
                 item['value'] = base64.b64encode(named_values['value'][1]).decode("utf-8")
 
+            # Timestamp from header
+            header = await self.session_mgr.raw_header(height)
+            time = header[68:72]
+            item['time'] = int.from_bytes(time, 'little')
+
             hashtags.append(item)
 
         return {'hashtags': hashtags, 'min_tx_num': history['min_tx_num']}
