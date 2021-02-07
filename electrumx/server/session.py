@@ -7,6 +7,8 @@
 
 '''Classes for local RPC server and remote client TCP/SSL servers.'''
 
+import base64
+import json
 import codecs
 import datetime
 import itertools
@@ -1179,9 +1181,34 @@ class ElectrumX(SessionBase):
                 for tx_hash, height in history]
         return conf + await self.unconfirmed_history(hashX)
 
-    def getShortCode(self, name_height, tx_pos):
+    async def get_namespace_profile(self, coin, keva_script):
+        named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
+        namespaceScript = named_values['name'][1] + b'\x01_KEVA_NS_'
+        nameHashX = coin.hashX_from_script(coin.build_name_index_script(namespaceScript))
+        names = await self.confirmed_and_unconfirmed_history(nameHashX)
+        # Get short code
+        name_height = names[0]['height']
+        _, tx_pos, _ = await self.session_mgr.merkle_branch_for_tx_hash(name_height, assert_tx_hash(names[0]['tx_hash']))
         height_str = str(name_height)
-        return str(len(height_str)) + height_str + str(tx_pos)
+        shortCode = str(len(height_str)) + height_str + str(tx_pos)
+
+        # Get name
+        tx_hash = assert_tx_hash(names[len(names) - 1]['tx_hash'])
+        ns_script = self.mempool.keva_script(tx_hash)
+        if not ns_script:
+            ns_script = await self.session_mgr.get_keva_script(tx_hash)
+
+        named_values, _ = coin.interpret_name_prefix(ns_script, coin.NAME_OPERATIONS)
+        display_name = ''
+        if "value" in named_values:
+            name_json_byte = named_values['value'][1]
+            name_json = name_json_byte.decode('utf8').replace("'", '"')
+            data = json.loads(name_json)
+            display_name = data['displayName']
+        else:
+            display_name = named_values['key'][1].decode('utf-8')
+
+        return display_name, shortCode
 
     async def get_hashtag(self, scripthash, start_tx_num):
         hashX = scripthash_to_hashX(scripthash)
@@ -1193,25 +1220,16 @@ class ElectrumX(SessionBase):
         history, cost = await self.session_mgr.get_hashtag(hashX, start_tx_num)
         self.bump_cost(cost)
         # TODO: expand tx_hash to contain key-value info.
-        build_name_index_script = self.coin.build_name_index_script
-        hashX_from_script = self.coin.hashX_from_script
-        interpret_name_prefix = self.coin.interpret_name_prefix
-        NAME_OPERATIONS = self.coin.NAME_OPERATIONS
+        coin = self.coin
+        build_name_index_script = coin.build_name_index_script
+        hashX_from_script = coin.hashX_from_script
         hashtags = []
         for tx_hash, height in history['hashtags']:
             keva_script = self.mempool.keva_script(tx_hash)
             if not keva_script:
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
 
-            # Find user info
-            named_values, _ = interpret_name_prefix(keva_script, NAME_OPERATIONS)
-            namespaceScript = named_values['name'][1] + b'\x01_KEVA_NS_'
-            nameHashX = hashX_from_script(build_name_index_script(namespaceScript))
-            names = await self.confirmed_and_unconfirmed_history(nameHashX)
-            # Get short code
-            name_height = names[0]['height']
-            _, tx_pos, _ = await self.session_mgr.merkle_branch_for_tx_hash(name_height, assert_tx_hash(names[0]['tx_hash']))
-            shortCode = self.getShortCode(name_height, tx_pos)
+            display_name, shortCode = await self.get_namespace_profile(coin, keva_script)
 
             reversed_tx_hash = bytes(reversed(tx_hash))
             # Find number of replies
@@ -1228,8 +1246,12 @@ class ElectrumX(SessionBase):
             likes = await self.confirmed_and_unconfirmed_history(likeHashX)
             print(likes)
 
-            #hashtags.append({'tx_hash': hash_to_hex_str(tx_hash), 'height': height, 'keva': keva_script})
-            hashtags.append({'tx_hash': hash_to_hex_str(tx_hash), 'height': height, 'shortCode': shortCode})
+            hashtags.append({
+                'tx_hash': hash_to_hex_str(tx_hash),
+                'display_name': display_name,
+                'height': height, 'shortCode': shortCode,
+                'keva': base64.b64encode(keva_script).decode("utf-8")
+            })
 
         return {'hashtags': hashtags, 'min_tx_num': history['min_tx_num']}
 
