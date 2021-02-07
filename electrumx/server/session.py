@@ -33,7 +33,7 @@ from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 import electrumx.lib.util as util
 from electrumx.lib.hash import (sha256, hash_to_hex_str, hex_str_to_hash,
-                                HASHX_LEN, Base58Error)
+                                HASHX_LEN, Base58, Base58Error)
 from electrumx.server.daemon import DaemonError
 from electrumx.server.peers import PeerManager
 
@@ -1201,17 +1201,17 @@ class ElectrumX(SessionBase):
         if not ns_script:
             ns_script = await self.session_mgr.get_keva_script(tx_hash)
 
-        named_values, _ = coin.interpret_name_prefix(ns_script, coin.NAME_OPERATIONS)
+        named_values_profile, _ = coin.interpret_name_prefix(ns_script, coin.NAME_OPERATIONS)
         display_name = ''
-        if "value" in named_values:
-            name_json_byte = named_values['value'][1]
+        if "value" in named_values_profile:
+            name_json_byte = named_values_profile['value'][1]
             name_json = name_json_byte.decode('utf8').replace("'", '"')
             data = json.loads(name_json)
             display_name = data['displayName']
         else:
-            display_name = named_values['key'][1].decode('utf-8')
+            display_name = named_values_profile['key'][1].decode('utf-8')
 
-        return display_name, shortCode
+        return display_name, shortCode, named_values
 
     async def get_hashtag(self, scripthash, start_tx_num):
         hashX = scripthash_to_hashX(scripthash)
@@ -1232,7 +1232,15 @@ class ElectrumX(SessionBase):
             if not keva_script:
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
 
-            display_name, shortCode = await self.get_namespace_profile(coin, keva_script)
+            display_name, shortCode, named_values = await self.get_namespace_profile(coin, keva_script)
+            if keva_script[0] == 0xd0:
+                named_values['type'] = 'REG'
+            elif keva_script[0] == 0xd1:
+                named_values['type'] = 'PUT'
+            elif keva_script[0] == 0xd2:
+                named_values['type'] = 'DEL'
+            else:
+                named_values['type'] = 'UNK'
 
             reversed_tx_hash = bytes(reversed(tx_hash))
             # Find number of replies
@@ -1250,13 +1258,22 @@ class ElectrumX(SessionBase):
             likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
             likes = len(self.session_mgr.get_txnums(likeHashX))
 
-            hashtags.append({
+            item = {
                 'tx_hash': hash_to_hex_str(tx_hash),
                 'displayName': display_name,
                 'height': height, 'shortCode': shortCode,
                 'replies': replies, 'shares': shares, 'likes': likes,
-                'keva': base64.b64encode(keva_script).decode("utf-8")
-            })
+                'type': named_values['type'],
+                'namespace': Base58.encode_check(named_values['name'][1])
+            }
+
+            if 'key' in named_values:
+                item['key'] = base64.b64encode(named_values['key'][1]).decode("utf-8")
+
+            if 'value' in named_values:
+                item['value'] = base64.b64encode(named_values['value'][1]).decode("utf-8")
+
+            hashtags.append(item)
 
         return {'hashtags': hashtags, 'min_tx_num': history['min_tx_num']}
 
