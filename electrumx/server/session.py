@@ -750,10 +750,10 @@ class SessionManager:
             raise result
         return result, cost
 
-    async def get_hashtag(self, hashX, start_tx_num=-1):
-        ''' List hashtags '''
-        result = await self.db.get_hashtag(hashX, self.HASHTAG_LIMIT, start_tx_num=start_tx_num)
-        cost = 0.2 + len(result['hashtags']) * 0.001
+    async def get_txnums_reverse_limited(self, hashX, start_tx_num=-1):
+        ''' List tx nums in reversed order '''
+        result = await self.db.get_txnums_reverse_limited(hashX, self.HASHTAG_LIMIT, start_tx_num=start_tx_num)
+        cost = 0.2 + len(result['items']) * 0.001
         return result, cost
 
 
@@ -1213,6 +1213,73 @@ class ElectrumX(SessionBase):
 
         return display_name, shortCode, named_values
 
+    async def get_keyvalues(self, scripthash, start_tx_num):
+        hashX = scripthash_to_hashX(scripthash)
+        if not start_tx_num:
+            start_tx_num = -1
+        else:
+            start_tx_num = int(start_tx_num)
+
+        history, cost = await self.session_mgr.get_txnums_reverse_limited(hashX, start_tx_num)
+        self.bump_cost(cost)
+
+        coin = self.coin
+        build_name_index_script = coin.build_name_index_script
+        hashX_from_script = coin.hashX_from_script
+        keyvalues = []
+        for tx_hash, height in history['items']:
+            keva_script = self.mempool.keva_script(tx_hash)
+            if not keva_script:
+                keva_script = await self.session_mgr.get_keva_script(tx_hash)
+
+            named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
+            if keva_script[0] == 0xd0:
+                named_values['type'] = 'REG'
+            elif keva_script[0] == 0xd1:
+                named_values['type'] = 'PUT'
+            elif keva_script[0] == 0xd2:
+                named_values['type'] = 'DEL'
+            else:
+                named_values['type'] = 'UNK'
+
+            reversed_tx_hash = bytes(reversed(tx_hash))
+            # Find number of replies
+            replyHashX = hashX_from_script(build_name_index_script(b'\x00\x01' + reversed_tx_hash))
+            # TODO:
+            # 1. handle unconfimed items in memory pool.
+            # 2. faster way to get count?
+            replies = len(self.session_mgr.get_txnums(replyHashX))
+
+            # Find number of shares
+            shareHashX = hashX_from_script(build_name_index_script(b'\x00\x02' + reversed_tx_hash))
+            shares = len(self.session_mgr.get_txnums(shareHashX))
+
+            # Find number of likes
+            likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
+            likes = len(self.session_mgr.get_txnums(likeHashX))
+
+            item = {
+                'tx_hash': hash_to_hex_str(tx_hash),
+                'height': height,
+                'replies': replies, 'shares': shares, 'likes': likes,
+                'type': named_values['type'],
+            }
+
+            if 'key' in named_values:
+                item['key'] = base64.b64encode(named_values['key'][1]).decode("utf-8")
+
+            if 'value' in named_values:
+                item['value'] = base64.b64encode(named_values['value'][1]).decode("utf-8")
+
+            # Timestamp from header
+            header = await self.session_mgr.raw_header(height)
+            time = header[68:72]
+            item['time'] = int.from_bytes(time, 'little')
+
+            keyvalues.append(item)
+
+        return {'keyvalues': keyvalues, 'min_tx_num': history['min_tx_num']}
+
     async def get_hashtag(self, scripthash, start_tx_num):
         hashX = scripthash_to_hashX(scripthash)
         if not start_tx_num:
@@ -1220,14 +1287,14 @@ class ElectrumX(SessionBase):
         else:
             start_tx_num = int(start_tx_num)
 
-        history, cost = await self.session_mgr.get_hashtag(hashX, start_tx_num)
+        history, cost = await self.session_mgr.get_txnums_reverse_limited(hashX, start_tx_num)
         self.bump_cost(cost)
 
         coin = self.coin
         build_name_index_script = coin.build_name_index_script
         hashX_from_script = coin.hashX_from_script
         hashtags = []
-        for tx_hash, height in history['hashtags']:
+        for tx_hash, height in history['items']:
             keva_script = self.mempool.keva_script(tx_hash)
             if not keva_script:
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
@@ -1594,8 +1661,7 @@ class ElectrumX(SessionBase):
             'blockchain.transaction.get': self.transaction_get,
             'blockchain.transaction.get_merkle': self.transaction_merkle,
             'blockchain.transaction.id_from_pos': self.transaction_id_from_pos,
-            #'blockchain.kevascripthash.get_history': self.kevascripthash_get_history,
-            #'blockchain.kevascript.get': self.kevascript_get,
+            'blockchain.keva.get_keyvalues': self.get_keyvalues,
             'blockchain.keva.get_hashtag': self.get_hashtag,
             'mempool.get_fee_histogram': self.mempool.compact_fee_histogram,
             'server.add_peer': self.add_peer,
