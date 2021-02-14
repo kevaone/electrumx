@@ -489,12 +489,12 @@ class DB(object):
                                 f'not found (reorg?), retrying...')
             await sleep(0.25)
 
-    async def get_txnums_reverse_limited(self, hashX, limit, start_tx_num=-1):
+    async def get_history_reverse_limited(self, hashX, limit, start_tx_num=-1):
         '''List tx nums of the given hashX, in reversed order, starting from
            start_tx_num.
         '''
         def read_item():
-            tx_nums = list(self.history.get_txnums_reverse_limited(hashX, limit, start_tx_num))
+            tx_nums = list(self.history.get_history_reverse_limited(hashX, limit, start_tx_num))
             fs_tx_hash = self.fs_tx_hash
             min_tx_num = -1
             if len(tx_nums) > 0:
@@ -505,7 +505,7 @@ class DB(object):
             items, min_tx_num = await run_in_thread(read_item)
             if all(hash is not None for hash, height in items):
                 return {'items': items, 'min_tx_num': min_tx_num}
-            self.logger.warning(f'get_txnums_reverse_limited: tx hash '
+            self.logger.warning(f'get_history_reverse_limited: tx hash '
                                 f'not found (reorg?), retrying...')
             await sleep(0.25)
 

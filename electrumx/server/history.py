@@ -192,7 +192,7 @@ class History(object):
                 yield tx_num
                 limit -= 1
 
-    def get_txnums_reverse_limited(self, hashX, limit, start_tx_num=-1):
+    def get_history_reverse_limited(self, hashX, limit, start_tx_num=-1):
         ''' Get the latest result of the given hashX
         start_tx_num: if -1, get the latest. Otherwise return tx whose
         tx number is less than the start_tx_num.

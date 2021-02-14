@@ -107,11 +107,10 @@ class SessionReferences:
     specials = attr.ib()    # Lower-case strings
     unknown = attr.ib()     # Strings
 
+HASHTAG_LIMIT = 25
 
 class SessionManager:
     '''Holds global state about all sessions.'''
-
-    HASHTAG_LIMIT = 25
 
     def __init__(self, env, db, bp, daemon, mempool, shutdown_event):
         env.max_send = max(350000, env.max_send)
@@ -750,12 +749,11 @@ class SessionManager:
             raise result
         return result, cost
 
-    async def get_txnums_reverse_limited(self, hashX, start_tx_num=-1):
+    async def get_history_reverse_limited(self, hashX, start_tx_num=-1, limit=HASHTAG_LIMIT):
         ''' List tx nums in reversed order '''
-        result = await self.db.get_txnums_reverse_limited(hashX, self.HASHTAG_LIMIT, start_tx_num=start_tx_num)
+        result = await self.db.get_history_reverse_limited(hashX, limit, start_tx_num=start_tx_num)
         cost = 0.2 + len(result['items']) * 0.001
         return result, cost
-
 
     def filter_history_result(self, all_result, start_height, max_count):
         result = []
@@ -770,60 +768,6 @@ class SessionManager:
 
     async def get_keva_script(self, tx_hash):
         return await self.db.get_keva_script(tx_hash)
-
-    def keva_expand_history(self, result):
-        return []
-
-    async def keva_limited_history(self, hashX, start_height, max_count):
-        '''Returns a pair (history, cost).
-
-        History is a sorted list of (tx_hash, height) tuples, or an RPCError.'''
-        # History DoS limit.  Each element of history is about 99 bytes when encoded
-        # as JSON.
-        limit = self.env.max_send // 99
-        cost = 0.1
-        self._history_lookups += 1
-
-        try:
-            all_result = self._history_cache[hashX]
-            self._history_hits += 1
-            result = self.filter_history_result(all_result, start_height, max_count)
-
-        except KeyError:
-            all_result = await self.db.limited_history(hashX, limit=limit)
-            cost += 0.1 + len(all_result) * 0.001
-            if len(all_result) >= limit:
-                raise RPCError(BAD_REQUEST, f'history too large', cost=cost)
-            else:
-                self._history_cache[hashX] = all_result
-                result = self.filter_history_result(all_result, start_height, max_count)
-
-        expanded_result = self.keva_expand_history(result)
-        return expanded_result, cost
-
-    async def keva_hashtag_history(self, hashX, start_height, max_count):
-        # History DoS limit.  Each element of history is about 99 bytes when encoded
-        # as JSON.
-        limit = self.env.max_send // 99
-        cost = 0.1
-        self._history_lookups += 1
-
-        try:
-            all_result = self._history_cache[hashX]
-            self._history_hits += 1
-            result = self.filter_history_result(all_result, start_height, max_count)
-
-        except KeyError:
-            all_result = await self.db.limited_history(hashX, limit=limit)
-            cost += 0.1 + len(all_result) * 0.001
-            if len(all_result) >= limit:
-                raise RPCError(BAD_REQUEST, f'history too large', cost=cost)
-            else:
-                self._history_cache[hashX] = all_result
-                result = self.filter_history_result(all_result, start_height, max_count)
-
-        expanded_result = self.keva_expand_history(result)
-        return expanded_result, cost
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -1213,6 +1157,82 @@ class ElectrumX(SessionBase):
 
         return display_name, shortCode, named_values
 
+    def get_keva_script_type(self, keva_script):
+        if keva_script[0] == 0xd0:
+            return 'REG'
+        elif keva_script[0] == 0xd1:
+            return 'PUT'
+        elif keva_script[0] == 0xd2:
+            return 'DEL'
+        else:
+            return 'UNK'
+
+    async def get_keyvalue_reactions(self, tx_hash_str, start_tx_num):
+        tx_hash = assert_tx_hash(tx_hash_str)
+        keva_script = self.mempool.keva_script(tx_hash)
+        if not keva_script:
+            keva_script = await self.session_mgr.get_keva_script(tx_hash)
+
+        coin = self.coin
+        build_name_index_script = coin.build_name_index_script
+        hashX_from_script = coin.hashX_from_script
+
+        named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
+        named_values['type'] = self.get_keva_script_type(keva_script)
+
+        reversed_tx_hash = bytes(reversed(tx_hash))
+        # Find number of replies
+        replyHashX = hashX_from_script(build_name_index_script(b'\x00\x01' + reversed_tx_hash))
+        # TODO: handle unconfimed items in memory pool.
+        replies_history, _ = await self.session_mgr.get_history_reverse_limited(replyHashX, -1, 2000)
+        print(replies_history)
+        replies = []
+        for tx, height in replies_history['items']:
+            script = await self.session_mgr.get_keva_script(tx)
+            values, _ = coin.interpret_name_prefix(script, coin.NAME_OPERATIONS)
+            entry = {
+                'tx_hash': hash_to_hex_str(tx),
+                'height': height,
+                'type': self.get_keva_script_type(script)
+            }
+            if 'key' in values:
+                entry['key'] = base64.b64encode(values['key'][1]).decode("utf-8")
+
+            if 'value' in values:
+                entry['value'] = base64.b64encode(values['value'][1]).decode("utf-8")
+
+            # Timestamp from header
+            if height > 0:
+                header = await self.session_mgr.raw_header(height)
+                time = header[68:72]
+                entry['time'] = int.from_bytes(time, 'little')
+
+            replies.append(entry)
+
+        # Find number of shares
+        shareHashX = hashX_from_script(build_name_index_script(b'\x00\x02' + reversed_tx_hash))
+        # TODO: faster way to get count?
+        shares = len(self.session_mgr.get_txnums(shareHashX))
+
+        # Find number of likes
+        likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
+        # TODO: faster way to get count?
+        likes = len(self.session_mgr.get_txnums(likeHashX))
+
+        item = {
+            'tx_hash': tx_hash_str,
+            'replies': replies, 'shares': shares, 'likes': likes,
+            'type': named_values['type'],
+        }
+
+        if 'key' in named_values:
+            item['key'] = base64.b64encode(named_values['key'][1]).decode("utf-8")
+
+        if 'value' in named_values:
+            item['value'] = base64.b64encode(named_values['value'][1]).decode("utf-8")
+
+        return {'result': item}
+
     async def get_keyvalues(self, scripthash, start_tx_num):
         hashX = scripthash_to_hashX(scripthash)
         if not start_tx_num:
@@ -1220,7 +1240,8 @@ class ElectrumX(SessionBase):
         else:
             start_tx_num = int(start_tx_num)
 
-        history, cost = await self.session_mgr.get_txnums_reverse_limited(hashX, start_tx_num)
+        # TODO: also get it from mempool!
+        history, cost = await self.session_mgr.get_history_reverse_limited(hashX, start_tx_num)
         self.bump_cost(cost)
 
         coin = self.coin
@@ -1233,14 +1254,7 @@ class ElectrumX(SessionBase):
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
 
             named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
-            if keva_script[0] == 0xd0:
-                named_values['type'] = 'REG'
-            elif keva_script[0] == 0xd1:
-                named_values['type'] = 'PUT'
-            elif keva_script[0] == 0xd2:
-                named_values['type'] = 'DEL'
-            else:
-                named_values['type'] = 'UNK'
+            named_values['type'] = self.get_keva_script_type(keva_script)
 
             reversed_tx_hash = bytes(reversed(tx_hash))
             # Find number of replies
@@ -1287,7 +1301,7 @@ class ElectrumX(SessionBase):
         else:
             start_tx_num = int(start_tx_num)
 
-        history, cost = await self.session_mgr.get_txnums_reverse_limited(hashX, start_tx_num)
+        history, cost = await self.session_mgr.get_history_reverse_limited(hashX, start_tx_num)
         self.bump_cost(cost)
 
         coin = self.coin
@@ -1300,14 +1314,7 @@ class ElectrumX(SessionBase):
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
 
             display_name, shortCode, named_values = await self.get_namespace_profile(coin, keva_script)
-            if keva_script[0] == 0xd0:
-                named_values['type'] = 'REG'
-            elif keva_script[0] == 0xd1:
-                named_values['type'] = 'PUT'
-            elif keva_script[0] == 0xd2:
-                named_values['type'] = 'DEL'
-            else:
-                named_values['type'] = 'UNK'
+            named_values['type'] = self.get_keva_script_type(keva_script)
 
             reversed_tx_hash = bytes(reversed(tx_hash))
             # Find number of replies
@@ -1663,6 +1670,7 @@ class ElectrumX(SessionBase):
             'blockchain.transaction.id_from_pos': self.transaction_id_from_pos,
             'blockchain.keva.get_keyvalues': self.get_keyvalues,
             'blockchain.keva.get_hashtag': self.get_hashtag,
+            'blockchain.keva.get_keyvalue_reactions': self.get_keyvalue_reactions,
             'mempool.get_fee_histogram': self.mempool.compact_fee_histogram,
             'server.add_peer': self.add_peer,
             'server.banner': self.banner,
