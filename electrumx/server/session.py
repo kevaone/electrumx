@@ -1246,15 +1246,17 @@ class ElectrumX(SessionBase):
         else:
             start_tx_num = int(start_tx_num)
 
-        # TODO: also get it from mempool!
         history, cost = await self.session_mgr.get_history_reverse_limited(hashX, start_tx_num)
         self.bump_cost(cost)
+        mempool_history = [(tx.hash, -tx.has_unconfirmed_inputs)
+                  for tx in await self.mempool.transaction_summaries(hashX)]
+        total_history = mempool_history + history['items']
 
         coin = self.coin
         build_name_index_script = coin.build_name_index_script
         hashX_from_script = coin.hashX_from_script
         keyvalues = []
-        for tx_hash, height in history['items']:
+        for tx_hash, height in total_history:
             keva_script = self.mempool.keva_script(tx_hash)
             if not keva_script:
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
