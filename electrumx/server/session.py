@@ -1293,8 +1293,8 @@ class ElectrumX(SessionBase):
 
             # Timestamp from header
             header = await self.session_mgr.raw_header(height)
-            time = header[68:72]
-            item['time'] = int.from_bytes(time, 'little')
+            timestamp = header[68:72]
+            item['time'] = int.from_bytes(timestamp, 'little')
 
             keyvalues.append(item)
 
@@ -1353,8 +1353,8 @@ class ElectrumX(SessionBase):
 
             # Timestamp from header
             header = await self.session_mgr.raw_header(height)
-            time = header[68:72]
-            item['time'] = int.from_bytes(time, 'little')
+            timestamp = header[68:72]
+            item['time'] = int.from_bytes(timestamp, 'little')
 
             hashtags.append(item)
 
