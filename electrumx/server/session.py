@@ -1218,12 +1218,12 @@ class ElectrumX(SessionBase):
         # Find number of shares
         shareHashX = hashX_from_script(build_name_index_script(b'\x00\x02' + reversed_tx_hash))
         # TODO: faster way to get count?
-        shares = len(self.session_mgr.get_txnums(shareHashX))
+        shares = len(self.session_mgr.get_txnums(shareHashX)) + len(await self.mempool.transaction_summaries(shareHashX))
 
         # Find number of likes
         likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
         # TODO: faster way to get count?
-        likes = len(self.session_mgr.get_txnums(likeHashX))
+        likes = len(self.session_mgr.get_txnums(likeHashX)) + len(await self.mempool.transaction_summaries(likeHashX))
 
         item = {
             'tx_hash': tx_hash_str,
@@ -1267,18 +1267,16 @@ class ElectrumX(SessionBase):
             reversed_tx_hash = bytes(reversed(tx_hash))
             # Find number of replies
             replyHashX = hashX_from_script(build_name_index_script(b'\x00\x01' + reversed_tx_hash))
-            # TODO:
-            # 1. handle unconfimed items in memory pool.
-            # 2. faster way to get count?
-            replies = len(self.session_mgr.get_txnums(replyHashX))
+            # TODO: faster way to get count?
+            replies = len(self.session_mgr.get_txnums(replyHashX)) + len(await self.mempool.transaction_summaries(replyHashX))
 
             # Find number of shares
             shareHashX = hashX_from_script(build_name_index_script(b'\x00\x02' + reversed_tx_hash))
-            shares = len(self.session_mgr.get_txnums(shareHashX))
+            shares = len(self.session_mgr.get_txnums(shareHashX)) + len(await self.mempool.transaction_summaries(shareHashX))
 
             # Find number of likes
             likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
-            likes = len(self.session_mgr.get_txnums(likeHashX))
+            likes = len(self.session_mgr.get_txnums(likeHashX)) + len(await self.mempool.transaction_summaries(likeHashX))
 
             item = {
                 'tx_hash': hash_to_hex_str(tx_hash),
@@ -1327,18 +1325,16 @@ class ElectrumX(SessionBase):
             reversed_tx_hash = bytes(reversed(tx_hash))
             # Find number of replies
             replyHashX = hashX_from_script(build_name_index_script(b'\x00\x01' + reversed_tx_hash))
-            # TODO:
-            # 1. handle unconfimed items in memory pool.
-            # 2. faster way to get count?
-            replies = len(self.session_mgr.get_txnums(replyHashX))
+            # TODO: faster way to get count?
+            replies = len(self.session_mgr.get_txnums(replyHashX)) + len(await self.mempool.transaction_summaries(replyHashX))
 
             # Find number of shares
             shareHashX = hashX_from_script(build_name_index_script(b'\x00\x02' + reversed_tx_hash))
-            shares = len(self.session_mgr.get_txnums(shareHashX))
+            shares = len(self.session_mgr.get_txnums(shareHashX)) + len(await self.mempool.transaction_summaries(shareHashX))
 
             # Find number of likes
             likeHashX = hashX_from_script(build_name_index_script(b'\x00\x03' + reversed_tx_hash))
-            likes = len(self.session_mgr.get_txnums(likeHashX))
+            likes = len(self.session_mgr.get_txnums(likeHashX)) + len(await self.mempool.transaction_summaries(likeHashX))
 
             item = {
                 'tx_hash': hash_to_hex_str(tx_hash),
