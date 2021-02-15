@@ -1183,12 +1183,18 @@ class ElectrumX(SessionBase):
         reversed_tx_hash = bytes(reversed(tx_hash))
         # Find number of replies
         replyHashX = hashX_from_script(build_name_index_script(b'\x00\x01' + reversed_tx_hash))
-        # TODO: handle unconfimed items in memory pool.
         replies_history, _ = await self.session_mgr.get_history_reverse_limited(replyHashX, -1, 2000)
-        print(replies_history)
+        mempool_result = [(tx.hash, -tx.has_unconfirmed_inputs)
+                  for tx in await self.mempool.transaction_summaries(replyHashX)]
+
+        total_history = replies_history['items'] + mempool_result
         replies = []
-        for tx, height in replies_history['items']:
-            script = await self.session_mgr.get_keva_script(tx)
+
+        for tx, height in total_history:
+            script = self.mempool.keva_script(tx)
+            if not script:
+                script = await self.session_mgr.get_keva_script(tx)
+
             values, _ = coin.interpret_name_prefix(script, coin.NAME_OPERATIONS)
             entry = {
                 'tx_hash': hash_to_hex_str(tx),
