@@ -1195,11 +1195,16 @@ class ElectrumX(SessionBase):
             if not script:
                 script = await self.session_mgr.get_keva_script(tx)
 
+            display_name, shortCode, _ = await self.get_namespace_profile(coin, script)
             values, _ = coin.interpret_name_prefix(script, coin.NAME_OPERATIONS)
             entry = {
                 'tx_hash': hash_to_hex_str(tx),
                 'height': height,
-                'type': self.get_keva_script_type(script)
+                'type': self.get_keva_script_type(script),
+                'sender': {
+                    'shortCode': shortCode,
+                    'displayName': display_name,
+                },
             }
             if 'key' in values:
                 entry['key'] = base64.b64encode(values['key'][1]).decode("utf-8")
