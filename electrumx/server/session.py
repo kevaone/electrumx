@@ -1242,6 +1242,10 @@ class ElectrumX(SessionBase):
         if 'value' in named_values:
             item['value'] = base64.b64encode(named_values['value'][1]).decode("utf-8")
 
+        ownDisplayName, ownShortCode, _ = await self.get_namespace_profile(coin, keva_script)
+        item['displayName'] = ownDisplayName
+        item['shortCode'] = ownShortCode
+
         return {'result': item}
 
     async def get_keyvalues(self, scripthash, start_tx_num):
