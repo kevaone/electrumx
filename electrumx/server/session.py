@@ -767,7 +767,15 @@ class SessionManager:
         return result
 
     async def get_keva_script(self, tx_hash):
-        return await self.db.get_keva_script(tx_hash)
+        # The first 4 bytes are height (in LE order).
+        keva_script = await self.db.get_keva_script(tx_hash)
+        return keva_script[4:]
+
+    async def get_keva_script_and_height(self, tx_hash):
+        # The first 4 bytes are height (in LE order).
+        keva_script = await self.db.get_keva_script(tx_hash)
+        height, = util.unpack_le_uint32(keva_script[0:4])
+        return height, keva_script[4:]
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -1170,8 +1178,9 @@ class ElectrumX(SessionBase):
     async def get_keyvalue_reactions(self, tx_hash_str, start_tx_num):
         tx_hash = assert_tx_hash(tx_hash_str)
         keva_script = self.mempool.keva_script(tx_hash)
+        tx_height = 0
         if not keva_script:
-            keva_script = await self.session_mgr.get_keva_script(tx_hash)
+            tx_height, keva_script = await self.session_mgr.get_keva_script_and_height(tx_hash)
 
         coin = self.coin
         build_name_index_script = coin.build_name_index_script
@@ -1245,6 +1254,10 @@ class ElectrumX(SessionBase):
         ownDisplayName, ownShortCode, _ = await self.get_namespace_profile(coin, keva_script)
         item['displayName'] = ownDisplayName
         item['shortCode'] = ownShortCode
+        item['height'] = tx_height
+        header = await self.session_mgr.raw_header(tx_height)
+        time = header[68:72]
+        item['time'] = int.from_bytes(time, 'little')
 
         return {'result': item}
 

@@ -392,7 +392,7 @@ class BlockProcessor(object):
             height += 1
             is_unspendable = (is_unspendable_genesis if height >= genesis_activation
                               else is_unspendable_legacy)
-            undo_info = self.advance_txs(block.transactions, is_unspendable)
+            undo_info = self.advance_txs(block.transactions, is_unspendable, height)
             if height >= min_height:
                 self.undo_infos.append((undo_info, height))
                 self.db.write_raw_block(block.raw, height)
@@ -835,9 +835,9 @@ class LTORBlockProcessor(BlockProcessor):
 
 class KevaIndexBlockProcessor(BlockProcessor):
 
-    def advance_txs(self, txs, is_unspendable):
+    def advance_txs(self, txs, is_unspendable, height):
         result = super().advance_txs(txs, is_unspendable)
-
+        height_numb = pack_le_uint32(height)
         tx_num = self.tx_count - len(txs)
         split_name_script  = self.coin.split_name_script
         script_name_hashX = self.coin.name_hashX_from_script
@@ -862,7 +862,8 @@ class KevaIndexBlockProcessor(BlockProcessor):
                     # Store key-value script by tx id.
                     _, address_script = split_name_script(txout.pk_script)
                     keva_script_len = len(txout.pk_script) - len(address_script)
-                    keva_scripts.append((_tx_hash, txout.pk_script[0:keva_script_len]))
+                    # The first 4 bytes are height.
+                    keva_scripts.append((_tx_hash, height_numb + txout.pk_script[0:keva_script_len]))
 
                 hashKeyX = script_key_hashX(txout.pk_script)
                 if hashKeyX:
