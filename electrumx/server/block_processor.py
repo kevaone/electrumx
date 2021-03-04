@@ -885,19 +885,15 @@ class KevaIndexBlockProcessor(BlockProcessor):
                     # It is a P2SH script.
                     address = self.coin.P2SH_address_from_hash160(address_script[2:22])
                     tx_addr_outs = tx_addr_outs + [address, value]
-                elif address_script.startswith(b'\x6a'):
-                    # OP_RETURN
-                    pass
-                elif address_script.startswith(b'\x00\x14') and len(address_script) == 22:
-                    # Native witness.
-                    address = 'kva' + self.coin.ENCODE_CHECK(address_script[2:])
+                elif address_script.startswith(b'\x76\xa4\x14') and len(address_script) == 25:
+                    # It is P2PKH script
+                    address = self.coin.P2PKH_address_from_hash160(address_script[3:23])
                     tx_addr_outs = tx_addr_outs + [address, value]
                 else:
-                    # why it failed?
-                    print((_tx_hash[::-1]).hex())
-                    print(address_script)
-                    traceback.print_exc()
-                    sys.exit()
+                    # It may be native witness starts with '\x00\x14' and followed by hash160.
+                    # Or completely something else. Put it in the category of "unhandled".
+                    address = 'unh' + self.coin.ENCODE_CHECK(address_script[0:])
+                    tx_addr_outs = tx_addr_outs + [address, value]
 
                 # Get the hashX of the name script.  Ignore non-name scripts.
                 hashX = script_name_hashX(txout.pk_script)
