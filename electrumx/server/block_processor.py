@@ -12,8 +12,6 @@
 import asyncio
 import time
 import json
-import traceback
-import sys
 
 from aiorpcx import TaskGroup, run_in_thread
 
@@ -873,13 +871,9 @@ class KevaIndexBlockProcessor(BlockProcessor):
                 value, pk_script = txout
                 named_values, address_script = self.coin.interpret_name_prefix(pk_script, self.coin.NAME_OPERATIONS)
                 if named_values is not None and "name" in named_values:
-                    try:
-                        # It is keva namespace
-                        namespace = self.Namespace_from_hash160(named_values["name"][1])
-                        tx_addr_outs = tx_addr_outs + [namespace, value]
-                    except:
-                        traceback.print_exc()
-                        sys.exit()
+                    # It is keva namespace
+                    namespace = self.Namespace_from_hash160(named_values["name"][1])
+                    tx_addr_outs = tx_addr_outs + [namespace, value]
 
                 elif address_script.startswith(b'\xa9\x14') and len(address_script) == 23:
                     # It is a P2SH script.
@@ -917,57 +911,44 @@ class KevaIndexBlockProcessor(BlockProcessor):
                 for h in hashKeyValueX or []:
                     append_hashX(h)
 
-            # TODO check tx inputs
-            # for txout in tx.inputs:
-            # TxInput(prev_hash=b'\xc1\xed\x05\x80\x980\xde"Y\x03\xc8\xdfo\xb4\x05B\\E\n4q\x865q\xf0T\x11\xca$v\x07\xc7',
-            # prev_idx=0, script=b'\x16\x00\x14v\xdf\xb6\x0f\xbb\xfd\xe9\x92\xd8\x97\xdc\xfd\x1d\x03|&i\xe5\xd1\x8a', sequence=4294967294)
-            # Find the tx of prev_hash, find the output, merge the addresses and values.
+            # TxInput(prev_hash=b'\xc1\...', prev_idx=0, script=b'\x16...', sequence=4294967294)
             tx_addr_ins = []
             for txin in tx.inputs:
-                try:
-                    prev_hash, prev_idx, _, _ = txin
-                    if self.is_coinbase(prev_hash):
-                        tx_addr_ins = []
-                        break
+                prev_hash, prev_idx, _, _ = txin
+                if self.is_coinbase(prev_hash):
+                    tx_addr_ins = []
+                    break
 
-                    # Check in-memory tx first.
-                    prev_tx_info = tx_info_batch.get(prev_hash)
-                    if prev_tx_info:
-                        prev_tx = prev_tx_info['o']
-                        prev_addr = prev_tx[2*prev_idx]
-                        prev_value = prev_tx[2*prev_idx + 1]
-                        tx_addr_ins = tx_addr_ins + [prev_addr, prev_value]
-                        continue
+                # Check in-memory tx first.
+                prev_tx_info = tx_info_batch.get(prev_hash)
+                if prev_tx_info:
+                    prev_tx = prev_tx_info['o']
+                    prev_addr = prev_tx[2*prev_idx]
+                    prev_value = prev_tx[2*prev_idx + 1]
+                    tx_addr_ins = tx_addr_ins + [prev_addr, prev_value]
+                    continue
 
-                    # Not in memory, check the storage
-                    prev_tx_str = self.db.tx_db.get_tx_info_sync(prev_hash)
-                    # It must be there!
-                    if prev_tx_str:
-                        prev_tx_info = json.loads(prev_tx_str.decode())
-                        prev_tx = prev_tx_info['o']
-                        print('2*prev_idx: ' + str(2*prev_idx))
-                        prev_addr = prev_tx[2*prev_idx]
-                        prev_value = prev_tx[2*prev_idx + 1]
-                        #TODO merge the duplicated addresses.
-                        try:
-                            index = tx_addr_ins.index(prev_addr)
-                        except:
-                            index = -1
+                # Not in memory, check the storage
+                prev_tx_str = self.db.tx_db.get_tx_info_sync(prev_hash)
+                if prev_tx_str:
+                    prev_tx_info = json.loads(prev_tx_str.decode())
+                    prev_tx = prev_tx_info['o']
+                    prev_addr = prev_tx[2*prev_idx]
+                    prev_value = prev_tx[2*prev_idx + 1]
+                    try:
+                        index = tx_addr_ins.index(prev_addr)
+                    except:
+                        index = -1
 
-                        if index >= 0:
-                            # For existing address, add the value.
-                            tx_addr_ins[index + 1] = tx_addr_ins[index + 1] + prev_value
-                        else:
-                            # Otherwise, it is a new address
-                            tx_addr_ins = tx_addr_ins + [prev_addr, prev_value]
-                        continue
+                    if index >= 0:
+                        # For existing address, add the value.
+                        tx_addr_ins[index + 1] = tx_addr_ins[index + 1] + prev_value
                     else:
-                        print('Should not be here!!!')
-                except:
-                    print('crash prev_tx_info is:')
-                    print(prev_tx_info)
-                    traceback.print_exc()
-                    sys.exit()
+                        # Otherwise, it is a new address
+                        tx_addr_ins = tx_addr_ins + [prev_addr, prev_value]
+                    continue
+                else:
+                    self.logger.warning('Prev tx not found in db!')
 
             tx_info = {
                 'o': tx_addr_outs,
@@ -978,7 +959,6 @@ class KevaIndexBlockProcessor(BlockProcessor):
             update_touched(hashXs)
             tx_num += 1
 
-        print(tx_info_batch)
         # Write transaction info to db.
         self.db.tx_db.put_tx_info_batch(tx_info_batch)
 
