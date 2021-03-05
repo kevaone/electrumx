@@ -41,7 +41,7 @@ class TxDb(object):
     def put_tx_info_batch(self, tx_info_batch):
         with self.db.write_batch() as batch:
             for tx_hash, tx_info in tx_info_batch.items():
-                batch.put(tx_hash[0:self.PARTIAL_TX_HASH], json.dumps(tx_info).encode())
+                batch.put(tx_hash[0:self.PARTIAL_TX_HASH], json.dumps(tx_info, separators=(',', ':')).encode())
 
     def get_tx_info_sync(self, tx_hash):
         return self.db.get(tx_hash[0:self.PARTIAL_TX_HASH])
