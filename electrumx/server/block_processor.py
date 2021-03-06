@@ -763,7 +763,6 @@ class KevaIndexBlockProcessor(BlockProcessor):
                     # It is keva namespace
                     namespace = self.Namespace_from_hash160(named_values["name"][1])
                     tx_addr_outs = tx_addr_outs + [namespace, value]
-
                 elif address_script.startswith(b'\xa9\x14') and len(address_script) == 23:
                     # It is a P2SH script.
                     address = self.coin.P2SH_address_from_hash160(address_script[2:22])
@@ -772,6 +771,9 @@ class KevaIndexBlockProcessor(BlockProcessor):
                     # It is P2PKH script
                     address = self.coin.P2PKH_address_from_hash160(address_script[3:23])
                     tx_addr_outs = tx_addr_outs + [address, value]
+                elif address_script.startswith(b'\x6a'):
+                    # OP_RETURN
+                    pass
                 else:
                     # It may be native witness starts with '\x00\x14' and followed by hash160.
                     # Or completely something else. Put it in the category of "unhandled".
@@ -800,6 +802,16 @@ class KevaIndexBlockProcessor(BlockProcessor):
                 for h in hashKeyValueX or []:
                     append_hashX(h)
 
+            # Only contains outputs. We will add inputs later.
+            tx_info_partial = {
+                'o': tx_addr_outs
+            }
+            tx_info_batch[_tx_hash] = tx_info_partial
+            append_hashXs(hashXs)
+            update_touched(hashXs)
+            tx_num += 1
+
+        for tx, _tx_hash in txs:
             # TxInput(prev_hash=b'\xc1\...', prev_idx=0, script=b'\x16...', sequence=4294967294)
             tx_addr_ins = []
             for txin in tx.inputs:
@@ -839,14 +851,10 @@ class KevaIndexBlockProcessor(BlockProcessor):
                 else:
                     self.logger.warning('Prev tx not found in db!')
 
-            tx_info = {
-                'o': tx_addr_outs,
-                'i': tx_addr_ins,
-            }
-            tx_info_batch[_tx_hash] = tx_info
-            append_hashXs(hashXs)
-            update_touched(hashXs)
-            tx_num += 1
+            # Add inputs info to make it complete.
+            tx_info_complete = tx_info_batch[_tx_hash]
+            tx_info_complete['i'] = tx_addr_ins
+            tx_info_batch[_tx_hash] = tx_info_complete
 
         # Write transaction info to db.
         self.db.tx_db.put_tx_info_batch(tx_info_batch)
