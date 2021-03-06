@@ -9,6 +9,7 @@
 
 import itertools
 import time
+import json
 from abc import ABC, abstractmethod
 from asyncio import Lock
 from collections import defaultdict
@@ -337,6 +338,7 @@ class MemPool(object):
             deserializer = self.coin.DESERIALIZER
 
             txs = {}
+            tx_list = []
             for hash, raw_tx in zip(hashes, raw_txs):
                 # The daemon may have evicted the tx from its
                 # mempool or it may have gotten in a block
@@ -350,6 +352,8 @@ class MemPool(object):
                                    if not txin.is_generation())
                 txout_pairs = tuple((to_hashX(txout.pk_script), txout.value)
                                     for txout in tx.outputs)
+
+                tx_list.append((tx, hash))
                 keva_script = None
                 if to_nameX:
                     for txout in tx.outputs:
@@ -377,6 +381,10 @@ class MemPool(object):
 
                 txs[hash] = MemPoolTx(txin_pairs, None, txout_pairs,
                                       0, tx_size, nameout, keyout, namekeyout, keva_script)
+
+            if self.db:
+                self.db.add_tx_info(self.coin, tx_list)
+
             return txs
 
         # Thread this potentially slow operation so as not to block
@@ -398,6 +406,8 @@ class MemPool(object):
     #
     # External interface
     #
+    def set_db(self, db):
+        self.db = db
 
     async def keep_synchronized(self, synchronized_event):
         '''Keep the mempool synchronized with the daemon.'''

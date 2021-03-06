@@ -722,18 +722,12 @@ class NameIndexBlockProcessor(BlockProcessor):
 
         return result
 
-
 class KevaIndexBlockProcessor(BlockProcessor):
-
-    COINBASE_TX_PREFIX = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 
     def Namespace_from_hash160(self, namespace):
         '''Return a coin address given a hash160.'''
         assert len(namespace) == 21
         return self.coin.ENCODE_CHECK(namespace)
-
-    def is_coinbase(self, tx_hash):
-        return tx_hash.startswith(self.COINBASE_TX_PREFIX)
 
     def advance_txs(self, txs, is_unspendable, height):
         result = super().advance_txs(txs, is_unspendable)
@@ -748,38 +742,13 @@ class KevaIndexBlockProcessor(BlockProcessor):
         hashXs_by_tx = []
         append_hashXs = hashXs_by_tx.append
         keva_scripts = []
-        tx_info_batch = {}
 
         for tx, _tx_hash in txs:
             hashXs = []
             append_hashX = hashXs.append
 
             # Add the new UTXOs and associate them with the name script
-            tx_addr_outs = []
             for txout in tx.outputs:
-                value, pk_script = txout
-                named_values, address_script = self.coin.interpret_name_prefix(pk_script, self.coin.NAME_OPERATIONS)
-                if named_values is not None and "name" in named_values:
-                    # It is keva namespace
-                    namespace = self.Namespace_from_hash160(named_values["name"][1])
-                    tx_addr_outs = tx_addr_outs + [namespace, value]
-                elif address_script.startswith(b'\xa9\x14') and len(address_script) == 23:
-                    # It is a P2SH script.
-                    address = self.coin.P2SH_address_from_hash160(address_script[2:22])
-                    tx_addr_outs = tx_addr_outs + [address, value]
-                elif address_script.startswith(b'\x76\xa4\x14') and len(address_script) == 25:
-                    # It is P2PKH script
-                    address = self.coin.P2PKH_address_from_hash160(address_script[3:23])
-                    tx_addr_outs = tx_addr_outs + [address, value]
-                elif address_script.startswith(b'\x6a'):
-                    # OP_RETURN
-                    pass
-                else:
-                    # It may be native witness starts with '\x00\x14' and followed by hash160.
-                    # Or completely something else. Put it in the category of "unhandled".
-                    address = 'unh' + self.coin.ENCODE_CHECK(address_script[0:])
-                    tx_addr_outs = tx_addr_outs + [address, value]
-
                 # Get the hashX of the name script.  Ignore non-name scripts.
                 hashX = script_name_hashX(txout.pk_script)
                 if hashX:
@@ -802,62 +771,12 @@ class KevaIndexBlockProcessor(BlockProcessor):
                 for h in hashKeyValueX or []:
                     append_hashX(h)
 
-            # Only contains outputs. We will add inputs later.
-            tx_info_partial = {
-                'o': tx_addr_outs
-            }
-            tx_info_batch[_tx_hash] = tx_info_partial
             append_hashXs(hashXs)
             update_touched(hashXs)
             tx_num += 1
 
-        for tx, _tx_hash in txs:
-            # TxInput(prev_hash=b'\xc1\...', prev_idx=0, script=b'\x16...', sequence=4294967294)
-            tx_addr_ins = []
-            for txin in tx.inputs:
-                prev_hash, prev_idx, _, _ = txin
-                if self.is_coinbase(prev_hash):
-                    tx_addr_ins = []
-                    break
-
-                # Check in-memory tx first.
-                prev_tx_info = tx_info_batch.get(prev_hash)
-                if prev_tx_info:
-                    prev_tx = prev_tx_info['o']
-                    prev_addr = prev_tx[2*prev_idx]
-                    prev_value = prev_tx[2*prev_idx + 1]
-                    tx_addr_ins = tx_addr_ins + [prev_addr, prev_value]
-                    continue
-
-                # Not in memory, check the storage
-                prev_tx_str = self.db.tx_db.get_tx_info_sync(prev_hash)
-                if prev_tx_str:
-                    prev_tx_info = json.loads(prev_tx_str.decode())
-                    prev_tx = prev_tx_info['o']
-                    prev_addr = prev_tx[2*prev_idx]
-                    prev_value = prev_tx[2*prev_idx + 1]
-                    try:
-                        index = tx_addr_ins.index(prev_addr)
-                    except:
-                        index = -1
-
-                    if index >= 0:
-                        # For existing address, add the value.
-                        tx_addr_ins[index + 1] = tx_addr_ins[index + 1] + prev_value
-                    else:
-                        # Otherwise, it is a new address
-                        tx_addr_ins = tx_addr_ins + [prev_addr, prev_value]
-                    continue
-                else:
-                    self.logger.warning('Prev tx not found in db!')
-
-            # Add inputs info to make it complete.
-            tx_info_complete = tx_info_batch[_tx_hash]
-            tx_info_complete['i'] = tx_addr_ins
-            tx_info_batch[_tx_hash] = tx_info_complete
-
         # Write transaction info to db.
-        self.db.tx_db.put_tx_info_batch(tx_info_batch)
+        self.db.tx_db.add_tx_info(self.coin, txs)
 
         self.db.keva.put_keva_script_batch(keva_scripts)
         self.db.history.add_unflushed(hashXs_by_tx, self.tx_count - len(txs))
