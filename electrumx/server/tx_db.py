@@ -54,6 +54,11 @@ class TxDb(object):
     def is_coinbase(self, tx_hash):
         return tx_hash == COINBASE_TX
 
+    def Namespace_from_hash160(self, coin, namespace):
+        '''Return a coin address given a hash160.'''
+        assert len(namespace) == 21
+        return coin.ENCODE_CHECK(namespace)
+
     def add_tx_info(self, coin, tx_list):
         tx_info_batch = {}
         for tx, _tx_hash in tx_list:
@@ -64,7 +69,7 @@ class TxDb(object):
                 named_values, address_script = coin.interpret_name_prefix(pk_script, coin.NAME_OPERATIONS)
                 if named_values is not None and "name" in named_values:
                     # It is keva namespace
-                    namespace = self.Namespace_from_hash160(named_values["name"][1])
+                    namespace = self.Namespace_from_hash160(coin, named_values["name"][1])
                     tx_addr_outs = tx_addr_outs + [namespace, value]
                 elif address_script.startswith(b'\xa9\x14') and len(address_script) == 23:
                     # It is a P2SH script.
@@ -134,6 +139,5 @@ class TxDb(object):
             tx_info_complete['i'] = tx_addr_ins
             tx_info_batch[_tx_hash] = tx_info_complete
 
-        print(tx_info_batch)
         # Write transaction info to db.
         self.put_tx_info_batch(tx_info_batch)
