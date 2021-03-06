@@ -547,32 +547,6 @@ class BitcoinSV(BitcoinMixin, Coin):
     ]
     GENESIS_ACTIVATION = 620_538
 
-
-class BitcoinCash(BitcoinMixin, Coin):
-    NAME = "BitcoinCashABC"   # Some releases later remove the ABC suffix
-    SHORTNAME = "BCH"
-    TX_COUNT = 265479628
-    TX_COUNT_HEIGHT = 556592
-    TX_PER_BLOCK = 400
-    PEERS = [
-        'bch.imaginary.cash s t',
-        'electroncash.dk s t',
-        'wallet.satoshiscoffeehouse.com s t',
-    ]
-    BLOCK_PROCESSOR = block_proc.LTORBlockProcessor
-
-    @classmethod
-    def warn_old_client_on_tx_broadcast(cls, client_ver):
-        if client_ver < (3, 3, 4):
-            return ('<br/><br/>'
-                    'Your transaction was successfully broadcast.<br/><br/>'
-                    'However, you are using a VULNERABLE version of Electron Cash.<br/>'
-                    'Download the latest version from this web site ONLY:<br/>'
-                    'https://electroncash.org/'
-                    '<br/><br/>')
-        return False
-
-
 class BitcoinSegwit(BitcoinMixin, Coin):
     NAME = "BitcoinSegwit"
     DESERIALIZER = lib_tx.DeserializerSegWit
@@ -793,29 +767,6 @@ class BitcoinSVScalingTestnet(BitcoinSVTestnet):
             return 100
         return 3
 
-
-class BitcoinCashTestnet(BitcoinTestnetMixin, Coin):
-    '''Bitcoin Testnet for Bitcoin Cash daemons.'''
-    NAME = "BitcoinCashABC"
-    PEERS = [
-        'bch0.kister.net t s',
-        'testnet.imaginary.cash t50001 s50002',
-        'blackie.c3-soft.com t60001 s60002',
-    ]
-    BLOCK_PROCESSOR = block_proc.LTORBlockProcessor
-
-    @classmethod
-    def warn_old_client_on_tx_broadcast(cls, client_ver):
-        if client_ver < (3, 3, 4):
-            return ('<br/><br/>'
-                    'Your transaction was successfully broadcast.<br/><br/>'
-                    'However, you are using a VULNERABLE version of Electron Cash.<br/>'
-                    'Download the latest version from this web site ONLY:<br/>'
-                    'https://electroncash.org/'
-                    '<br/><br/>')
-        return False
-
-
 class BitcoinSVRegtest(BitcoinSVTestnet):
     NET = "regtest"
     GENESIS_HASH = ('0f9188f13cb7b2c71f2a335e3a4fc328'
@@ -860,20 +811,6 @@ class BitcoinSegwitRegtest(BitcoinSegwitTestnet):
     PEERS = []
     TX_COUNT = 1
     TX_COUNT_HEIGHT = 1
-
-
-class BitcoinNolnet(BitcoinCash):
-    '''Bitcoin Unlimited nolimit testnet.'''
-    NET = "nolnet"
-    GENESIS_HASH = ('0000000057e31bd2066c939a63b7b862'
-                    '3bd0f10d8c001304bdfc1a7902ae6d35')
-    PEERS = []
-    REORG_LIMIT = 8000
-    TX_COUNT = 583589
-    TX_COUNT_HEIGHT = 8617
-    TX_PER_BLOCK = 50
-    RPC_PORT = 28332
-    PEER_DEFAULT_PORTS = {'t': '52001', 's': '52002'}
 
 
 # Source: https://github.com/sumcoinlabs/sumcoin
@@ -955,18 +892,6 @@ class LitecoinRegtest(LitecoinTestnet):
     PEERS = []
     TX_COUNT = 1
     TX_COUNT_HEIGHT = 1
-
-
-class BitcoinCashRegtest(BitcoinTestnetMixin, Coin):
-    NAME = "BitcoinCashABC"   # Some releases later remove the ABC suffix
-    NET = "regtest"
-    PEERS = []
-    GENESIS_HASH = ('0f9188f13cb7b2c71f2a335e3a4fc328'
-                    'bf5beb436012afca590b1a11466e2206')
-    TX_COUNT = 1
-    TX_COUNT_HEIGHT = 1
-    BLOCK_PROCESSOR = block_proc.LTORBlockProcessor
-
 
 class Viacoin(AuxPowMixin, Coin):
     NAME = "Viacoin"
@@ -2145,73 +2070,6 @@ class BitcoinAtom(Coin):
         '''Return the block header bytes'''
         deserializer = cls.DESERIALIZER(block)
         return deserializer.read_header(height, cls.BASIC_HEADER_SIZE)
-
-
-class Decred(Coin):
-    NAME = "Decred"
-    SHORTNAME = "DCR"
-    NET = "mainnet"
-    XPUB_VERBYTES = bytes.fromhex("02fda926")
-    XPRV_VERBYTES = bytes.fromhex("02fda4e8")
-    P2PKH_VERBYTE = bytes.fromhex("073f")
-    P2SH_VERBYTES = [bytes.fromhex("071a")]
-    WIF_BYTE = bytes.fromhex("22de")
-    GENESIS_HASH = ('298e5cc3d985bfe7f81dc135f360abe0'
-                    '89edd4396b86d2de66b0cef42b21d980')
-    BASIC_HEADER_SIZE = 180
-    HEADER_HASH = lib_tx.DeserializerDecred.blake256
-    DESERIALIZER = lib_tx.DeserializerDecred
-    DAEMON = daemon.DecredDaemon
-    BLOCK_PROCESSOR = block_proc.DecredBlockProcessor
-    ENCODE_CHECK = partial(Base58.encode_check,
-                           hash_fn=lib_tx.DeserializerDecred.blake256d)
-    DECODE_CHECK = partial(Base58.decode_check,
-                           hash_fn=lib_tx.DeserializerDecred.blake256d)
-    HEADER_VALUES = ('version', 'prev_block_hash', 'merkle_root', 'stake_root',
-                     'vote_bits', 'final_state', 'voters', 'fresh_stake',
-                     'revocations', 'pool_size', 'bits', 'sbits',
-                     'block_height', 'size', 'timestamp', 'nonce',
-                     'extra_data', 'stake_version')
-    HEADER_UNPACK = struct.Struct(
-        '< i 32s 32s 32s H 6s H B B I I Q I I I I 32s I').unpack_from
-    TX_COUNT = 4629388
-    TX_COUNT_HEIGHT = 260628
-    TX_PER_BLOCK = 17
-    REORG_LIMIT = 1000
-    RPC_PORT = 9109
-
-    @classmethod
-    def header_hash(cls, header):
-        '''Given a header return the hash.'''
-        return cls.HEADER_HASH(header)
-
-    @classmethod
-    def block(cls, raw_block, height):
-        '''Return a Block namedtuple given a raw block and its height.'''
-        if height > 0:
-            return super().block(raw_block, height)
-        else:
-            return Block(raw_block, cls.block_header(raw_block, height), [])
-
-
-class DecredTestnet(Decred):
-    SHORTNAME = "tDCR"
-    NET = "testnet"
-    XPUB_VERBYTES = bytes.fromhex("043587d1")
-    XPRV_VERBYTES = bytes.fromhex("04358397")
-    P2PKH_VERBYTE = bytes.fromhex("0f21")
-    P2SH_VERBYTES = [bytes.fromhex("0efc")]
-    WIF_BYTE = bytes.fromhex("230e")
-    GENESIS_HASH = (
-        'a649dce53918caf422e9c711c858837e08d626ecfcd198969b24f7b634a49bac')
-    BASIC_HEADER_SIZE = 180
-    ALLOW_ADVANCING_ERRORS = True
-    TX_COUNT = 217380620
-    TX_COUNT_HEIGHT = 464000
-    TX_PER_BLOCK = 1800
-    REORG_LIMIT = 1000
-    RPC_PORT = 19109
-
 
 class Axe(Dash):
     NAME = "Axe"
