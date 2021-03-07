@@ -392,7 +392,8 @@ class BlockProcessor(object):
             height += 1
             is_unspendable = (is_unspendable_genesis if height >= genesis_activation
                               else is_unspendable_legacy)
-            undo_info = self.advance_txs(block.transactions, is_unspendable, height)
+            blocktime = int.from_bytes(block.header[68:72], 'little')
+            undo_info = self.advance_txs(block.transactions, is_unspendable, height, blocktime)
             if height >= min_height:
                 self.undo_infos.append((undo_info, height))
                 self.db.write_raw_block(block.raw, height)
@@ -723,7 +724,7 @@ class NameIndexBlockProcessor(BlockProcessor):
 
 class KevaIndexBlockProcessor(BlockProcessor):
 
-    def advance_txs(self, txs, is_unspendable, height):
+    def advance_txs(self, txs, is_unspendable, height, blocktime):
         result = super().advance_txs(txs, is_unspendable)
         height_numb = pack_le_uint32(height)
         tx_num = self.tx_count - len(txs)
@@ -770,7 +771,7 @@ class KevaIndexBlockProcessor(BlockProcessor):
             tx_num += 1
 
         # Write transaction info to db.
-        self.db.tx_db.add_tx_info(self.coin, txs)
+        self.db.tx_db.add_tx_info(self.coin, txs, height, blocktime)
         self.db.keva.put_keva_script_batch(keva_scripts)
         self.db.history.add_unflushed(hashXs_by_tx, self.tx_count - len(txs))
 

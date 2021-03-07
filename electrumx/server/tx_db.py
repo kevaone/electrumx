@@ -59,17 +59,10 @@ class TxDb(object):
         assert len(namespace) == 21
         return coin.ENCODE_CHECK(namespace)
 
-    def add_tx_info(self, coin, tx_list):
+    def add_tx_info(self, coin, tx_list, height, blocktime):
         tx_info_batch = {}
-        # Find the transactions that are not stored yet. They may have been stored
-        # when they are in mempool.
-        new_tx_list = []
-        for tx, tx_hash in tx_list:
-            tx_str = self.get_tx_info_sync(tx_hash)
-            if not tx_str:
-                new_tx_list.append((tx, tx_hash))
 
-        for tx, _tx_hash in new_tx_list:
+        for tx, _tx_hash in tx_list:
             # For tx info.
             tx_addr_outs = []
             tx_namespace = None
@@ -103,13 +96,17 @@ class TxDb(object):
                 vout += 1
 
             # Only contains outputs. We will add inputs later.
-            tx_info_partial = {'o': tx_addr_outs}
+            tx_info_partial = {
+                'o': tx_addr_outs,
+                't': blocktime,
+                'h': height
+            }
             if tx_namespace:
                 tx_info_partial['n'] = [tx_namespace, tx_namespace_vout]
 
             tx_info_batch[_tx_hash] = tx_info_partial
 
-        for tx, _tx_hash in new_tx_list:
+        for tx, _tx_hash in tx_list:
             # TxInput(prev_hash=b'\xc1\...', prev_idx=0, script=b'\x16...', sequence=4294967294)
             tx_addr_ins = []
             for txin in tx.inputs:

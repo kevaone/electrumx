@@ -382,7 +382,7 @@ class MemPool(object):
                                       0, tx_size, nameout, keyout, namekeyout, keva_script)
 
             if self.db:
-                self.db.tx_db.add_tx_info(self.coin, tx_list)
+                self.db.tx_db.add_tx_info(self.coin, tx_list, -1, -1)
 
             return txs
 
