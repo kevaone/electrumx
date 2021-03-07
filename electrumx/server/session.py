@@ -40,6 +40,7 @@ from electrumx.server.peers import PeerManager
 
 BAD_REQUEST = 1
 DAEMON_ERROR = 2
+MAX_INFO_TXS = 200
 
 def scripthash_to_hashX(scripthash):
     try:
@@ -782,6 +783,9 @@ class SessionManager:
         if not isinstance(txs, list):
             raise RPCError(BAD_REQUEST, 'expected a list of transaction hashes')
 
+        if len(txs) > MAX_INFO_TXS:
+            raise RPCError(BAD_REQUEST, 'too many transactions, max: ' + str(MAX_INFO_TXS))
+
         results = []
         for tx_hash in txs:
             tx_info = await get_tx_info(assert_tx_hash(tx_hash))
@@ -790,7 +794,8 @@ class SessionManager:
             else:
                 results.append({})
 
-        return results
+        cost = 0.1 + len(results) * 0.001
+        return results, cost
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -1399,7 +1404,9 @@ class ElectrumX(SessionBase):
 
     async def get_transactions_info(self, txs):
         '''Get transaction input and output addresses, as well as values.'''
-        return await self.session_mgr.get_transactions_info(txs)
+        results, cost = await self.session_mgr.get_transactions_info(txs)
+        self.bump_cost(cost)
+        return results
 
     async def scripthash_get_history(self, scripthash):
         '''Return the confirmed and unconfirmed history of a scripthash.'''
