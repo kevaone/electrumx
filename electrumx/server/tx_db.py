@@ -72,14 +72,18 @@ class TxDb(object):
         for tx, _tx_hash in new_tx_list:
             # For tx info.
             tx_addr_outs = []
+            tx_namespace = None
+            tx_namespace_vout = 0
+            vout = 0
             for txout in tx.outputs:
                 value, pk_script = txout
                 named_values, address_script = coin.interpret_name_prefix(pk_script, coin.NAME_OPERATIONS)
                 if named_values is not None and "name" in named_values:
                     # It is keva namespace
-                    namespace = self.Namespace_from_hash160(coin, named_values["name"][1])
-                    tx_addr_outs = tx_addr_outs + [namespace, value]
-                elif address_script.startswith(b'\xa9\x14') and len(address_script) == 23:
+                    tx_namespace = self.Namespace_from_hash160(coin, named_values["name"][1])
+                    tx_namespace_vout = vout
+
+                if address_script.startswith(b'\xa9\x14') and len(address_script) == 23:
                     # It is a P2SH script.
                     address = coin.P2SH_address_from_hash160(address_script[2:22])
                     tx_addr_outs = tx_addr_outs + [address, value]
@@ -96,10 +100,13 @@ class TxDb(object):
                     address = 'unh' + coin.ENCODE_CHECK(address_script[0:])
                     tx_addr_outs = tx_addr_outs + [address, value]
 
+                vout += 1
+
             # Only contains outputs. We will add inputs later.
-            tx_info_partial = {
-                'o': tx_addr_outs
-            }
+            tx_info_partial = {'o': tx_addr_outs}
+            if tx_namespace:
+                tx_info_partial['n'] = [tx_namespace, tx_namespace_vout]
+
             tx_info_batch[_tx_hash] = tx_info_partial
 
         for tx, _tx_hash in new_tx_list:
