@@ -61,7 +61,15 @@ class TxDb(object):
 
     def add_tx_info(self, coin, tx_list):
         tx_info_batch = {}
-        for tx, _tx_hash in tx_list:
+        # Find the transactions that are not stored yet. They may have been stored
+        # when they are in mempool.
+        new_tx_list = []
+        for tx, tx_hash in tx_list:
+            tx_str = self.get_tx_info_sync(tx_hash)
+            if not tx_str:
+                new_tx_list.append((tx, tx_hash))
+
+        for tx, _tx_hash in new_tx_list:
             # For tx info.
             tx_addr_outs = []
             for txout in tx.outputs:
@@ -94,7 +102,7 @@ class TxDb(object):
             }
             tx_info_batch[_tx_hash] = tx_info_partial
 
-        for tx, _tx_hash in tx_list:
+        for tx, _tx_hash in new_tx_list:
             # TxInput(prev_hash=b'\xc1\...', prev_idx=0, script=b'\x16...', sequence=4294967294)
             tx_addr_ins = []
             for txin in tx.inputs:
