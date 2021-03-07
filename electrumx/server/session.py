@@ -804,7 +804,9 @@ class SessionManager:
                     keva_script = await self.get_keva_script(tx_hash)
                 coin = self.env.coin
                 named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
-                key_value = {}
+                key_value = {
+                    'op': int(keva_script[0]),
+                }
                 if 'key' in named_values:
                     key_value['key'] = base64.b64encode(named_values['key'][1]).decode("utf-8")
                 if 'value' in named_values:
