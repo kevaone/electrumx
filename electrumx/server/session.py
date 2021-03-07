@@ -777,6 +777,21 @@ class SessionManager:
         height, = util.unpack_le_uint32(keva_script[0:4])
         return height, keva_script[4:]
 
+    async def get_transactions_info(self, txs):
+        get_tx_info = self.db.tx_db.get_tx_info
+        if not isinstance(txs, list):
+            raise RPCError(BAD_REQUEST, 'expected a list of transaction hashes')
+
+        results = []
+        for tx_hash in txs:
+            tx_info = await get_tx_info(assert_tx_hash(tx_hash))
+            if tx_info:
+                results.append(json.loads(tx_info.decode()))
+            else:
+                results.append({})
+
+        return results
+
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
         # Invalidate our height-based caches in case of a reorg.  Increment the cache
@@ -1382,6 +1397,10 @@ class ElectrumX(SessionBase):
 
         return {'hashtags': hashtags, 'min_tx_num': history['min_tx_num']}
 
+    async def get_transactions_info(self, txs):
+        '''Get transaction input and output addresses, as well as values.'''
+        return await self.session_mgr.get_transactions_info(txs)
+
     async def scripthash_get_history(self, scripthash):
         '''Return the confirmed and unconfirmed history of a scripthash.'''
         hashX = scripthash_to_hashX(scripthash)
@@ -1697,6 +1716,7 @@ class ElectrumX(SessionBase):
             'blockchain.keva.get_keyvalues': self.get_keyvalues,
             'blockchain.keva.get_hashtag': self.get_hashtag,
             'blockchain.keva.get_keyvalue_reactions': self.get_keyvalue_reactions,
+            'blockchain.keva.get_transactions_info': self.get_transactions_info,
             'mempool.get_fee_histogram': self.mempool.compact_fee_histogram,
             'server.add_peer': self.add_peer,
             'server.banner': self.banner,
