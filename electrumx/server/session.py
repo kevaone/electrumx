@@ -1505,6 +1505,9 @@ class ElectrumX(SessionBase):
         self.bump_cost(cost)
         return result
 
+    async def block_count(self):
+        return self.session_mgr.daemon.cached_height()
+
     def is_tor(self):
         '''Try to detect if the connection is to a tor hidden service we are
         running.'''
@@ -1727,6 +1730,7 @@ class ElectrumX(SessionBase):
         handlers = {
             'blockchain.block.header': self.block_header,
             'blockchain.block.headers': self.block_headers,
+            'blockchain.block.count': self.block_count,
             'blockchain.estimatefee': self.estimatefee,
             'blockchain.headers.subscribe': self.headers_subscribe,
             'blockchain.relayfee': self.relayfee,
