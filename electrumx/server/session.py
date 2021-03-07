@@ -778,7 +778,10 @@ class SessionManager:
         height, = util.unpack_le_uint32(keva_script[0:4])
         return height, keva_script[4:]
 
-    async def get_transactions_info(self, txs):
+    async def get_transactions_info(self, txs, namespace_info):
+        if namespace_info not in (True, False):
+            raise RPCError(BAD_REQUEST, f'"namespace_info" must be a boolean')
+
         get_tx_info = self.db.tx_db.get_tx_info
         if not isinstance(txs, list):
             raise RPCError(BAD_REQUEST, 'expected a list of transaction hashes')
@@ -789,10 +792,26 @@ class SessionManager:
         results = []
         for tx_hash in txs:
             tx_info = await get_tx_info(assert_tx_hash(tx_hash))
-            if tx_info:
-                results.append(json.loads(tx_info.decode()))
-            else:
+            if not tx_info:
                 results.append({})
+                continue
+
+            tx_info_json = json.loads(tx_info.decode())
+            if namespace_info and tx_info_json['n']:
+                keva_script = self.mempool.keva_script(tx_hash)
+                if not keva_script:
+                    keva_script = await self.get_keva_script(tx_hash)
+                coin = self.env.coin
+                named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
+                key_value = {}
+                if 'key' in named_values:
+                    key_value['key'] = base64.b64encode(named_values['key'][1]).decode("utf-8")
+                if 'value' in named_values:
+                    key_value['value'] = base64.b64encode(named_values['value'][1]).decode("utf-8")
+                tx_info_json['kv'] = key_value
+                results.append(tx_info_json)
+            else:
+                results.append(tx_info_json)
 
         cost = 0.1 + len(results) * 0.001
         return results, cost
@@ -1402,9 +1421,9 @@ class ElectrumX(SessionBase):
 
         return {'hashtags': hashtags, 'min_tx_num': history['min_tx_num']}
 
-    async def get_transactions_info(self, txs):
+    async def get_transactions_info(self, txs, namespace_info):
         '''Get transaction input and output addresses, as well as values.'''
-        results, cost = await self.session_mgr.get_transactions_info(txs)
+        results, cost = await self.session_mgr.get_transactions_info(txs, namespace_info)
         self.bump_cost(cost)
         return results
 
