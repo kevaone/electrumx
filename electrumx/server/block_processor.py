@@ -11,7 +11,6 @@
 
 import asyncio
 import time
-import json
 
 from aiorpcx import TaskGroup, run_in_thread
 
@@ -724,11 +723,6 @@ class NameIndexBlockProcessor(BlockProcessor):
 
 class KevaIndexBlockProcessor(BlockProcessor):
 
-    def Namespace_from_hash160(self, namespace):
-        '''Return a coin address given a hash160.'''
-        assert len(namespace) == 21
-        return self.coin.ENCODE_CHECK(namespace)
-
     def advance_txs(self, txs, is_unspendable, height):
         result = super().advance_txs(txs, is_unspendable)
         height_numb = pack_le_uint32(height)
@@ -777,7 +771,6 @@ class KevaIndexBlockProcessor(BlockProcessor):
 
         # Write transaction info to db.
         self.db.tx_db.add_tx_info(self.coin, txs)
-
         self.db.keva.put_keva_script_batch(keva_scripts)
         self.db.history.add_unflushed(hashXs_by_tx, self.tx_count - len(txs))
 

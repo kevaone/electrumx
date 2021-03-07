@@ -9,7 +9,6 @@
 
 import itertools
 import time
-import json
 from abc import ABC, abstractmethod
 from asyncio import Lock
 from collections import defaultdict
@@ -383,7 +382,7 @@ class MemPool(object):
                                       0, tx_size, nameout, keyout, namekeyout, keva_script)
 
             if self.db:
-                self.db.add_tx_info(self.coin, tx_list)
+                self.db.tx_db.add_tx_info(self.coin, tx_list)
 
             return txs
 
