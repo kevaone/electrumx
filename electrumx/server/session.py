@@ -790,14 +790,15 @@ class SessionManager:
             raise RPCError(BAD_REQUEST, 'too many transactions, max: ' + str(MAX_INFO_TXS))
 
         results = []
-        for tx_hash in txs:
-            tx_info = await get_tx_info(assert_tx_hash(tx_hash))
+        for _tx_hash in txs:
+            tx_hash = assert_tx_hash(_tx_hash)
+            tx_info = await get_tx_info(tx_hash)
             if not tx_info:
                 results.append({})
                 continue
 
             tx_info_json = json.loads(tx_info.decode())
-            if namespace_info and tx_info_json['n']:
+            if namespace_info and tx_info_json.get('n'):
                 keva_script = self.mempool.keva_script(tx_hash)
                 if not keva_script:
                     keva_script = await self.get_keva_script(tx_hash)
