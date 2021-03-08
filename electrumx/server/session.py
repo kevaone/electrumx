@@ -1356,9 +1356,10 @@ class ElectrumX(SessionBase):
                 item['value'] = base64.b64encode(named_values['value'][1]).decode("utf-8")
 
             # Timestamp from header
-            header = await self.session_mgr.raw_header(height)
-            timestamp = header[68:72]
-            item['time'] = int.from_bytes(timestamp, 'little')
+            if height > 0:
+                header = await self.session_mgr.raw_header(height)
+                timestamp = header[68:72]
+                item['time'] = int.from_bytes(timestamp, 'little')
 
             keyvalues.append(item)
 
