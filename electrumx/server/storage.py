@@ -84,6 +84,7 @@ class LevelDB(Storage):
         self.close = self.db.close
         self.get = self.db.get
         self.put = self.db.put
+        self.delete = self.db.delete
         self.iterator = self.db.iterator
         self.write_batch = partial(self.db.write_batch, transaction=True,
                                    sync=True)
@@ -107,6 +108,7 @@ class RocksDB(Storage):
         self.db = self.module.DB(name, options)
         self.get = self.db.get
         self.put = self.db.put
+        self.delete = self.db.delete
 
     def close(self):
         # PyRocksDB doesn't provide a close method; hopefully this is enough

@@ -150,7 +150,7 @@ class SessionManager:
 
         # Set up the RPC request handlers
         cmds = ('add_peer daemon_url disconnect getinfo groups log peers '
-                'query reorg sessions stop'.split())
+                'query reorg sessions stop keva_ban_tx keva_unban_tx keva_show_banned_txs'.split())
         LocalRPC.request_handlers = {cmd: getattr(self, 'rpc_' + cmd)
                                      for cmd in cmds}
 
@@ -475,6 +475,31 @@ class SessionManager:
         except Exception as e:
             raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
         return f'now using daemon at {self.daemon.logged_url()}'
+
+    async def rpc_keva_ban_tx(self, tx_hash, reason=0):
+        ''' Hide a tx so that its content will not be displayed,
+        nor will it show up in the result of hashtag search'''
+        try:
+            await self.db.keva_ban.put_keva_ban_tx(hex_str_to_hash(tx_hash), reason)
+        except Exception as e:
+            raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
+        return f'content of tx will be banned {tx_hash}'
+
+    async def rpc_keva_unban_tx(self, tx_hash):
+        ''' Show a tx that is previously hidden.'''
+        try:
+            await self.db.keva_ban.delete_keva_ban_tx(hex_str_to_hash(tx_hash))
+        except Exception as e:
+            raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
+        return f'content of tx will be unbanned {tx_hash}'
+
+    async def rpc_keva_show_banned_txs(self, reason):
+        ''' Show all the banned txs.'''
+        try:
+            banned_txs = await self.db.keva_ban.get_keva_all_ban_tx(reason)
+        except Exception as e:
+            raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
+        return banned_txs
 
     async def rpc_stop(self):
         '''Shut down the server cleanly.'''

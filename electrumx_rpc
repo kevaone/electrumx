@@ -74,6 +74,36 @@ other_commands = {
             'help': 'number of blocks to back up'
         },
     ),
+    'keva_ban_tx': (
+        'Ban a tx so that its content is not shown',
+        [], {
+            'type': str,
+            'dest': 'tx_hash',
+            'help': 'tx hash',
+        }, [], {
+            'type': int,
+            'dest': 'reason',
+            'help': 'reason code',
+            'default': 0,
+        },
+    ),
+    'keva_show_banned_txs': (
+        'Show all banned tx',
+        [], {
+            'type': int,
+            'dest': 'reason',
+            'default': -1,
+            'help': 'reason code',
+        },
+    ),
+    'keva_unban_tx': (
+        'Unban a tx',
+        [], {
+            'type': str,
+            'dest': 'tx_hash',
+            'help': 'tx hash',
+        },
+    ),
 }
 
 

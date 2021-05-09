@@ -31,6 +31,7 @@ from electrumx.lib.util import (
 from electrumx.server.storage import db_class
 from electrumx.server.history import History
 from electrumx.server.keva import Keva
+from electrumx.server.keva_ban import KevaBan
 from electrumx.server.tx_db import TxDb
 
 
@@ -96,6 +97,7 @@ class DB(object):
 
         # Keva
         self.keva = Keva()
+        self.keva_ban = KevaBan()
 
         # Tx Info (addresses in, addresses out, value)
         self.tx_db = TxDb()
@@ -153,6 +155,7 @@ class DB(object):
 
         # Keva DB
         self.keva.open_db(self.db_class, for_sync)
+        self.keva_ban.open_db(self.db_class, False)
 
         # Tx info DB
         self.tx_db.open_db(self.db_class, for_sync)
@@ -181,6 +184,7 @@ class DB(object):
             self.utxo_db.close()
             self.history.close_db()
             self.keva.close_db()
+            self.keva_ban.close_db()
             self.tx_db.close_db()
             self.utxo_db = None
         await self._open_dbs(False, False)
