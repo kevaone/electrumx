@@ -39,6 +39,28 @@ class Keva(object):
     def put_keva_script(self, tx_hash, keva_script):
         self.db.put(tx_hash[0:self.PARTIAL_TX_HASH], keva_script)
 
+    def put_keva_ban_tx_sync(self, tx_hash, reason=0):
+        keva_script = self.db.get(tx_hash[0:self.PARTIAL_TX_HASH])
+        if not keva_script:
+            return
+
+        ban_prefix = bytes([(reason & 0xff), 0xff, 0xff, 0xff])
+        self.db.put(tx_hash[0:self.PARTIAL_TX_HASH], ban_prefix + keva_script)
+
+    async def put_keva_ban_tx(self, tx_hash, reason=0):
+        return await run_in_thread(self.put_keva_ban_tx_sync, tx_hash, reason)
+
+    def remove_keva_ban_tx_sync(self, tx_hash):
+        keva_script = self.db.get(tx_hash[0:self.PARTIAL_TX_HASH])
+        if not keva_script:
+            return
+
+        if keva_script[1] == 0xff and keva_script[2] == 0xff and keva_script[3] == 0xff:
+            self.db.put(tx_hash[0:self.PARTIAL_TX_HASH], keva_script[4:])
+
+    async def remove_keva_ban_tx(self, tx_hash):
+        return await run_in_thread(self.remove_keva_ban_tx_sync, tx_hash)
+
     def put_keva_script_batch(self, keva_script_batch):
         with self.db.write_batch() as batch:
             for tx_hash, keva_script in keva_script_batch:

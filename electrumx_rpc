@@ -87,15 +87,6 @@ other_commands = {
             'default': 0,
         },
     ),
-    'keva_show_banned_txs': (
-        'Show all banned tx',
-        [], {
-            'type': int,
-            'dest': 'reason',
-            'default': -1,
-            'help': 'reason code',
-        },
-    ),
     'keva_unban_tx': (
         'Unban a tx',
         [], {

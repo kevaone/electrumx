@@ -150,7 +150,7 @@ class SessionManager:
 
         # Set up the RPC request handlers
         cmds = ('add_peer daemon_url disconnect getinfo groups log peers '
-                'query reorg sessions stop keva_ban_tx keva_unban_tx keva_show_banned_txs'.split())
+                'query reorg sessions stop keva_ban_tx keva_unban_tx'.split())
         LocalRPC.request_handlers = {cmd: getattr(self, 'rpc_' + cmd)
                                      for cmd in cmds}
 
@@ -480,26 +480,18 @@ class SessionManager:
         ''' Hide a tx so that its content will not be displayed,
         nor will it show up in the result of hashtag search'''
         try:
-            await self.db.keva_ban.put_keva_ban_tx(hex_str_to_hash(tx_hash), reason)
+            await self.db.keva.put_keva_ban_tx(hex_str_to_hash(tx_hash), reason)
         except Exception as e:
             raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
-        return f'content of tx will be banned {tx_hash}'
+        return f'content of tx is banned {tx_hash}'
 
     async def rpc_keva_unban_tx(self, tx_hash):
         ''' Show a tx that is previously hidden.'''
         try:
-            await self.db.keva_ban.delete_keva_ban_tx(hex_str_to_hash(tx_hash))
+            await self.db.keva.remove_keva_ban_tx(hex_str_to_hash(tx_hash))
         except Exception as e:
             raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
-        return f'content of tx will be unbanned {tx_hash}'
-
-    async def rpc_keva_show_banned_txs(self, reason):
-        ''' Show all the banned txs.'''
-        try:
-            banned_txs = await self.db.keva_ban.get_keva_all_ban_tx(reason)
-        except Exception as e:
-            raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
-        return banned_txs
+        return f'content of tx is unbanned {tx_hash}'
 
     async def rpc_stop(self):
         '''Shut down the server cleanly.'''
@@ -792,14 +784,25 @@ class SessionManager:
                     break
         return result
 
-    async def get_keva_script(self, tx_hash):
+    async def get_keva_script(self, tx_hash, banned_include=False):
         # The first 4 bytes are height (in LE order).
         keva_script = await self.db.get_keva_script(tx_hash)
-        return keva_script[4:]
+        # However, if they are 0xffffffxx, it is banned.
+        is_banned = keva_script[1] == 0xff and keva_script[2] == 0xff and keva_script[3] == 0xff
+        if is_banned and (not banned_include):
+            return None
+
+        if is_banned:
+            return keva_script[8:]
+        else:
+            return keva_script[4:]
 
     async def get_keva_script_and_height(self, tx_hash):
         # The first 4 bytes are height (in LE order).
         keva_script = await self.db.get_keva_script(tx_hash)
+        if not keva_script:
+            return None, None
+
         height, = util.unpack_le_uint32(keva_script[0:4])
         return height, keva_script[4:]
 
@@ -826,7 +829,7 @@ class SessionManager:
             if namespace_info and tx_info_json.get('n'):
                 keva_script = self.mempool.keva_script(tx_hash)
                 if not keva_script:
-                    keva_script = await self.get_keva_script(tx_hash)
+                    keva_script = await self.get_keva_script(tx_hash, True)
                 coin = self.env.coin
                 named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
                 key_value = {
@@ -1219,6 +1222,9 @@ class ElectrumX(SessionBase):
         ns_script = self.mempool.keva_script(tx_hash)
         if not ns_script:
             ns_script = await self.session_mgr.get_keva_script(tx_hash)
+            if not ns_script:
+                # Must have been banned.
+                return '', -1, named_values
 
         named_values_profile, _ = coin.interpret_name_prefix(ns_script, coin.NAME_OPERATIONS)
         display_name = ''
@@ -1248,6 +1254,9 @@ class ElectrumX(SessionBase):
         tx_height = 0
         if not keva_script:
             tx_height, keva_script = await self.session_mgr.get_keva_script_and_height(tx_hash)
+            if not keva_script:
+                # It must have been banned.
+                return {'result': {}}
 
         coin = self.coin
         build_name_index_script = coin.build_name_index_script
@@ -1270,6 +1279,9 @@ class ElectrumX(SessionBase):
             script = self.mempool.keva_script(tx)
             if not script:
                 script = await self.session_mgr.get_keva_script(tx)
+                if not script:
+                    # It must have been banned.
+                    continue
 
             display_name, shortCode, _ = await self.get_namespace_profile(coin, script)
             values, _ = coin.interpret_name_prefix(script, coin.NAME_OPERATIONS)
@@ -1349,6 +1361,11 @@ class ElectrumX(SessionBase):
             keva_script = self.mempool.keva_script(tx_hash)
             if not keva_script:
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
+                if not keva_script:
+                    # It must be banned.
+                    # TODO: create a replacement keva_script to indicate
+                    # that it has been banned.
+                    continue
 
             named_values, _ = coin.interpret_name_prefix(keva_script, coin.NAME_OPERATIONS)
             named_values['type'] = self.get_keva_script_type(keva_script)
@@ -1408,6 +1425,9 @@ class ElectrumX(SessionBase):
             keva_script = self.mempool.keva_script(tx_hash)
             if not keva_script:
                 keva_script = await self.session_mgr.get_keva_script(tx_hash)
+                if not keva_script:
+                    # It must have been banned.
+                    continue
 
             display_name, shortCode, named_values = await self.get_namespace_profile(coin, keva_script)
             named_values['type'] = self.get_keva_script_type(keva_script)
@@ -1742,16 +1762,6 @@ class ElectrumX(SessionBase):
     async def compact_fee_histogram(self):
         self.bump_cost(1.0)
         return await self.mempool.compact_fee_histogram()
-
-    async def kevascripthash_get_history(self, scripthash):
-        return None
-
-    async def kevascript_get(self, tx_hash):
-        keva_script = self.mempool.keva_script(tx_hash)
-        if keva_script:
-            return keva_script
-
-        return await self.session_mgr.get_keva_script(tx_hash)
 
     def set_request_handlers(self, ptuple):
         self.protocol_tuple = ptuple
