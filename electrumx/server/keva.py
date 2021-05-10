@@ -39,9 +39,12 @@ class Keva(object):
     def put_keva_script(self, tx_hash, keva_script):
         self.db.put(tx_hash[0:self.PARTIAL_TX_HASH], keva_script)
 
+    def is_banned(self, keva_script):
+        return keva_script[1] == 0xff and keva_script[2] == 0xff and keva_script[3] == 0xff
+
     def put_keva_ban_tx_sync(self, tx_hash, reason=0):
         keva_script = self.db.get(tx_hash[0:self.PARTIAL_TX_HASH])
-        if not keva_script:
+        if (not keva_script) or self.is_banned(keva_script):
             return
 
         ban_prefix = bytes([(reason & 0xff), 0xff, 0xff, 0xff])
@@ -52,11 +55,10 @@ class Keva(object):
 
     def remove_keva_ban_tx_sync(self, tx_hash):
         keva_script = self.db.get(tx_hash[0:self.PARTIAL_TX_HASH])
-        if not keva_script:
+        if (not keva_script) or (not self.is_banned(keva_script)):
             return
 
-        if keva_script[1] == 0xff and keva_script[2] == 0xff and keva_script[3] == 0xff:
-            self.db.put(tx_hash[0:self.PARTIAL_TX_HASH], keva_script[4:])
+        self.db.put(tx_hash[0:self.PARTIAL_TX_HASH], keva_script[4:])
 
     async def remove_keva_ban_tx(self, tx_hash):
         return await run_in_thread(self.remove_keva_ban_tx_sync, tx_hash)
