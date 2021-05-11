@@ -93,6 +93,26 @@ class Env(EnvBase):
             self.ssl_keyfile = self.required('SSL_KEYFILE')
         self.report_services = self.services_to_report()
 
+        # Banned hashtags
+        banned_hashtags = map(str.strip, self.default('BANNED_HASHTAGS', '').lower().split(','))
+        self.banned_hashtags = list(banned_hashtags)
+        self.compute_banned_hashtag()
+
+    def compute_banned_hashtag(self):
+        coin = self.coin
+        build_name_index_script = coin.build_name_index_script
+        hashX_from_script = coin.hashX_from_script
+        banned_hashtags_hashX = []
+        # Generate the banned hashtags hashX
+        for hashtag in self.banned_hashtags:
+            name_bytes = build_name_index_script(str.encode(hashtag))
+            hashX_entry = hashX_from_script(name_bytes)
+            banned_hashtags_hashX.append(hashX_entry)
+
+        self.logger.info(f'banned hashtags total: {len(banned_hashtags_hashX)}')
+        self.banned_hashtags_hashX = banned_hashtags_hashX
+
+
     def sane_max_sessions(self):
         '''Return the maximum number of sessions to permit.  Normally this
         is MAX_SESSIONS.  However, to prevent open file exhaustion, ajdust

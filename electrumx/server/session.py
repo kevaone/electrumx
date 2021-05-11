@@ -1409,6 +1409,11 @@ class ElectrumX(SessionBase):
 
     async def get_hashtag(self, scripthash, start_tx_num):
         hashX = scripthash_to_hashX(scripthash)
+
+        # Check if the hashtag is banned.
+        if hashX in self.env.banned_hashtags_hashX:
+            return {'hashtags': [], 'min_tx_num': -1}
+
         if not start_tx_num:
             start_tx_num = -1
         else:
