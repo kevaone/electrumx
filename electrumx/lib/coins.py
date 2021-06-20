@@ -813,8 +813,8 @@ class Kevacoin(NameIndexMixin, Coin):
 
         # Build index if the key has a certain pattern.
         # i.e. it starts with 0x01. We will index both namespace and key.
-        if not key.startswith(b'\x01'):
-            return None, address_script
+        #if not key.startswith(b'\x01'):
+        #    return None, address_script
 
         name_index_script = cls.build_name_index_script(name + key)
         return name_index_script, address_script
