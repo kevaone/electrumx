@@ -779,7 +779,10 @@ class Kevacoin(NameIndexMixin, Coin):
     @classmethod
     def header_hash(cls, header):
         import pycryptonight
-        cnHeader = header[81:]
+        if cls.NET == 'mainnet':
+            cnHeader = header[81:]
+        elif cls.NET == 'regtest':
+            cnHeader = header[81:-4]
         return pycryptonight.cn_fast_hash(cnHeader)
 
     @classmethod
@@ -877,3 +880,36 @@ class Kevacoin(NameIndexMixin, Coin):
         name_values, _ = cls.interpret_name_prefix(keva_script, cls.NAME_OPERATIONS)
         name_values['op'] = keva_script[0]
         return name_values
+
+class KevacoinTestnet(Kevacoin):
+    NAME = "Kevacoin"
+    SHORTNAME = "XKV"
+    NET = "testnet"
+
+    XPUB_VERBYTES = bytes.fromhex("0488b21e")
+    XPRV_VERBYTES = bytes.fromhex("0488ade4")
+    P2PKH_VERBYTE = bytes.fromhex("37")
+    P2SH_VERBYTES = [bytes.fromhex("41")]
+    WIF_BYTE = bytes.fromhex("3a")
+    GENESIS_HASH = ('21ebe179e22753b30e605f0381f6a313'
+                    'cdd16d09b2310db8d5bc87ada743269f')
+
+    RPC_PORT = 19335
+    PEERS = []
+
+class KevacoinRegtest(KevacoinTestnet):
+    NAME = "Kevacoin"
+    NET = "regtest"
+
+    XPUB_VERBYTES = bytes.fromhex("043587cf")
+    XPRV_VERBYTES = bytes.fromhex("04358394")
+    P2PKH_VERBYTE = bytes.fromhex("6f")
+    P2SH_VERBYTES = [bytes.fromhex("3a")]
+    WIF_BYTE = bytes.fromhex("ef")
+    GENESIS_HASH = ('913ef11843ce0d4905bfdbd73c8e57bc'
+                    '9b35619dfada60474e64040b351b9941')
+
+    RPC_PORT = 19444
+    PEERS = []
+    TX_COUNT = 1
+    TX_COUNT_HEIGHT = 1
